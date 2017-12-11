@@ -458,7 +458,7 @@ public class RecoveryStrategy implements Runnable, Closeable {
           core.getCoreDescriptor());
       return;
     }
-    
+
     // we temporary ignore peersync for tlog replicas
     boolean firstTime = replicaType != Replica.Type.TLOG;
 
@@ -541,7 +541,9 @@ public class RecoveryStrategy implements Runnable, Closeable {
           zkController.publish(core.getCoreDescriptor(), Replica.State.ACTIVE);
           return;
         }
-        
+
+        //TODO check connection to the leader
+
         LOG.info("Begin buffering updates. core=[{}]", coreName);
         ulog.bufferUpdates();
         replayed = false;
