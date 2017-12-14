@@ -181,7 +181,7 @@ public class ZkShardTerms implements AutoCloseable{
     } catch (NoSuchElementException e) {
       throw e;
     } catch (Exception e) {
-      e.printStackTrace();
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error save shard term for collection:" + collection, e);
     }
     return false;
   }
@@ -228,8 +228,11 @@ public class ZkShardTerms implements AutoCloseable{
       version = data.getVersion();
       terms = (Map<String, Long>) Utils.fromJSON(data.getData());
       onTermUpdates();
-    } catch (Exception e) {
-      e.printStackTrace();
+    } catch (InterruptedException e) {
+      Thread.interrupted();
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
+    } catch (IOException | KeeperException e) {
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
     }
   }
 
