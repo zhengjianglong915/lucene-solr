@@ -170,12 +170,13 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     }
   }
 
-  public void testCoreTermWatcher() {
+  public void testCoreTermWatcher() throws InterruptedException {
     String collection = "coreTermWatcher";
     ZkShardTerms leaderTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
     leaderTerms.registerTerm("leader");
     ZkShardTerms replicaTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
     replicaTerms.registerTerm("replica");
+    waitFor(2, () -> replicaTerms.getTerms().size());
 
     AtomicInteger count = new AtomicInteger(0);
     // this will get called for almost 2 times
@@ -191,10 +192,11 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     replicaTerms.close();
   }
 
-  private <T> void waitFor(T expected, Supplier<T> supplier) {
+  private <T> void waitFor(T expected, Supplier<T> supplier) throws InterruptedException {
     TimeOut timeOut = new TimeOut(2, TimeUnit.SECONDS);
     while (!timeOut.hasTimedOut()) {
       if (expected == supplier.get()) return;
+      Thread.sleep(100);
     }
     assertEquals(expected, supplier.get());
   }
