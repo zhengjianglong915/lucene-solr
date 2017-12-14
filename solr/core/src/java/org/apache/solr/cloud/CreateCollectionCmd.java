@@ -378,7 +378,14 @@ public class CreateCollectionCmd implements Cmd {
   public static void createCollectionZkNode(SolrZkClient zkClient, String collection, Map<String,String> params) {
     log.debug("Check for collection zkNode:" + collection);
     String collectionPath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection;
-
+    String termsPath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection + "/terms";
+    try {
+      if (zkClient.exists(termsPath, true)) {
+        zkClient.clean(termsPath);
+      }
+    } catch (KeeperException | InterruptedException e) {
+      throw new SolrException(ErrorCode.SERVER_ERROR, "Error deleting old term nodes for collection from Zookeeper", e);
+    }
     try {
       if (!zkClient.exists(collectionPath, true)) {
         log.debug("Creating collection in ZooKeeper:" + collection);

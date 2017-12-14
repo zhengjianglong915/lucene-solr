@@ -36,6 +36,7 @@ import org.apache.solr.client.solrj.cloud.autoscaling.VersionedData;
 import org.apache.solr.client.solrj.impl.ZkDistribStateManager;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.cloud.SolrZkClient;
+import org.apache.solr.common.cloud.ZkStateReader;
 import org.apache.solr.common.util.ObjectReleaseTracker;
 import org.apache.solr.common.util.Utils;
 import org.apache.solr.core.CoreDescriptor;
@@ -66,7 +67,7 @@ public class ZkShardTerms implements AutoCloseable{
   }
 
   public ZkShardTerms(String collection, String shard, SolrZkClient client) {
-    this.znodePath = "/collections/" + collection + "/terms/" + shard;
+    this.znodePath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection + "/terms/" + shard;
     this.collection = collection;
     this.shard = shard;
     this.stateManager = new ZkDistribStateManager(client);

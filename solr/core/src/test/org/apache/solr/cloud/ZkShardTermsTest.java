@@ -27,11 +27,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.calcite.rel.core.Collect;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.embedded.JettySolrRunner;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
@@ -58,6 +60,13 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
 
   public void testParticipationOfReplicas() throws IOException, SolrServerException {
     String collection = "collection1";
+    try (ZkShardTerms zkShardTerms = new ZkShardTerms(collection, "shard2", cluster.getZkClient())) {
+      zkShardTerms.registerTerm("replica1");
+      zkShardTerms.registerTerm("replica2");
+      zkShardTerms.ensureTermsIsHigher("replica1", Collections.singleton("replica2"));
+    }
+
+    // When new collection is created, the old term nodes will be removed
     CollectionAdminRequest.createCollection(collection, 2, 2)
         .setCreateNodeSet(cluster.getJettySolrRunner(0).getNodeName())
         .setMaxShardsPerNode(1000)
@@ -144,18 +153,16 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
       threads[i].start();
     }
 
-    AtomicInteger maxTerm = new AtomicInteger();
+    long maxTerm = 0;
     try (ZkShardTerms shardTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient())) {
       shardTerms.registerTerm("leader");
       TimeOut timeOut = new TimeOut(10, TimeUnit.SECONDS);
       while (!timeOut.hasTimedOut()) {
-        if (shardTerms.ensureTermsIsHigher("leader", new HashSet<>(failedReplicas))) {
-          maxTerm.incrementAndGet();
-        }
+        maxTerm++;
         assertEquals(shardTerms.getTerms().get("leader"), Collections.max(shardTerms.getTerms().values()));
         Thread.sleep(100);
       }
-      assertEquals(maxTerm.get(), Collections.max(shardTerms.getTerms().values()).longValue());
+      assertTrue(maxTerm >= Collections.max(shardTerms.getTerms().values()).longValue());
     }
     stop.set(true);
     for (Thread thread : threads) {
