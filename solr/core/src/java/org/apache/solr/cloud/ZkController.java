@@ -1433,7 +1433,7 @@ public class ZkController {
   public void unregister(String coreName, CoreDescriptor cd) throws Exception {
     final String coreNodeName = cd.getCloudDescriptor().getCoreNodeName();
     final String collection = cd.getCloudDescriptor().getCollectionName();
-    getShardTerms(collection, cd.getCloudDescriptor().getShardId()).removeTerm(collection, cd);
+    getShardTerms(collection, cd.getCloudDescriptor().getShardId()).removeTerm(cd);
 
     if (Strings.isNullOrEmpty(collection)) {
       log.error("No collection was specified.");

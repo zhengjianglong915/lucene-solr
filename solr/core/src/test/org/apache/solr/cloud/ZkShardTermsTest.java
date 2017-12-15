@@ -17,37 +17,24 @@
 
 package org.apache.solr.cloud;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import org.apache.calcite.rel.core.Collect;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.embedded.JettySolrRunner;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
-import org.apache.solr.common.cloud.SolrZkClient;
-import org.apache.solr.core.SolrCore;
 import org.apache.solr.util.TimeOut;
-import org.apache.zookeeper.KeeperException;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ZkShardTermsTest extends SolrCloudTestCase {
 
@@ -80,7 +67,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     assertArrayEquals(new Long[]{0L, 0L}, terms.values().toArray(new Long[2]));
   }
 
-  public void testRegisterTerm() {
+  public void testRegisterTerm() throws InterruptedException {
     String collection = "registerTerm";
     ZkShardTerms rep1Terms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
     ZkShardTerms rep2Terms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
@@ -99,6 +86,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     rep1Terms.registerTerm("rep1");
     assertEquals(1L, rep1Terms.getTerms().get("rep1").longValue());
 
+    waitFor(1L, () -> rep2Terms.getTerms().get("rep1"));
     rep2Terms.setEqualsToMax("rep2");
     assertEquals(1L, rep2Terms.getTerms().get("rep2").longValue());
     rep2Terms.registerTerm("rep2");
