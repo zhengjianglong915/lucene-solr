@@ -1424,16 +1424,20 @@ public class ZkController {
   }
 
   public ZkShardTerms getShardTerms(String collection, String shardId) {
+    return getCollectionTerms(collection).getShard(shardId);
+  }
+
+  public ZkCollectionTerms getCollectionTerms(String collection) {
     synchronized (collectionToTerms) {
       if (!collectionToTerms.containsKey(collection)) collectionToTerms.put(collection, new ZkCollectionTerms(collection, zkClient));
+      return collectionToTerms.get(collection);
     }
-    return collectionToTerms.get(collection).getShard(shardId);
   }
 
   public void unregister(String coreName, CoreDescriptor cd) throws Exception {
     final String coreNodeName = cd.getCloudDescriptor().getCoreNodeName();
     final String collection = cd.getCloudDescriptor().getCollectionName();
-    getShardTerms(collection, cd.getCloudDescriptor().getShardId()).removeTerm(cd);
+    getCollectionTerms(collection).remove(cd.getCloudDescriptor().getShardId(), cd);
 
     if (Strings.isNullOrEmpty(collection)) {
       log.error("No collection was specified.");

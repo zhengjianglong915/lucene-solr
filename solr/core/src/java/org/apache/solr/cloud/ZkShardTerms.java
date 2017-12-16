@@ -98,7 +98,7 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
-  void removeTerm(CoreDescriptor cd) {
+  boolean removeTerm(CoreDescriptor cd) {
     synchronized (listeners) {
       // solrcore already closed
       listeners.removeIf(coreTermWatcher -> !coreTermWatcher.onTermChanged(terms));
@@ -106,11 +106,12 @@ public class ZkShardTerms implements AutoCloseable{
     Terms newTerms;
     while ( (newTerms = terms.removeTerm(cd.getCloudDescriptor().getCoreNodeName())) != null) {
       try {
-        if (saveTerms(newTerms)) break;
-      } catch (NoSuchElementException e) {
-        return;
+        if (saveTerms(newTerms)) return newTerms.terms.isEmpty();
+      } catch (KeeperException.NoNodeException e) {
+        return true;
       }
     }
+    return true;
   }
 
   void registerTerm(String replica) {
@@ -136,13 +137,13 @@ public class ZkShardTerms implements AutoCloseable{
   private boolean forceSaveTerms(Terms newTerms) {
     try {
       return saveTerms(newTerms);
-    } catch (NoSuchElementException e) {
+    } catch (KeeperException.NoNodeException e) {
       ensureTermNodeExist();
       return false;
     }
   }
 
-  private boolean saveTerms(Terms newTerms) throws NoSuchElementException {
+  private boolean saveTerms(Terms newTerms) throws KeeperException.NoNodeException {
     byte[] znodeData = Utils.toJSON(newTerms.terms);
     // must retry on conn loss otherwise future election attempts may assume wrong LIR state
     try {
@@ -150,9 +151,9 @@ public class ZkShardTerms implements AutoCloseable{
       updateTerms(new Terms(newTerms.terms, stat.getVersion()));
       return true;
     } catch (KeeperException.BadVersionException e) {
-      log.info("Failed to save terms, version is not match, updating local terms");
+      log.info("Failed to save terms, version is not match, retrying");
       updateTerms();
-    } catch (NoSuchElementException e) {
+    } catch (KeeperException.NoNodeException e) {
       throw e;
     } catch (Exception e) {
       throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error save shard term for collection:" + collection, e);
@@ -211,15 +212,14 @@ public class ZkShardTerms implements AutoCloseable{
   }
 
   private void updateTerms(Terms newTerms) {
-    boolean isNewer = false;
+    boolean isChanged = false;
     synchronized (writingLock) {
-      if (terms == null || newTerms.version > terms.version) {
+      if (terms == null || newTerms.version != terms.version) {
         terms = newTerms;
-        isNewer = true;
+        isChanged = true;
       }
     }
-
-    if (isNewer) onTermUpdates(newTerms);
+    if (isChanged) onTermUpdates(newTerms);
   }
 
   private void onTermUpdates(Terms newTerms) {

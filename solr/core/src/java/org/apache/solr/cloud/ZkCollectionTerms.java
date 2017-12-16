@@ -22,6 +22,7 @@ import java.util.Map;
 
 import org.apache.solr.common.cloud.SolrZkClient;
 import org.apache.solr.common.util.ObjectReleaseTracker;
+import org.apache.solr.core.CoreDescriptor;
 
 public class ZkCollectionTerms implements AutoCloseable {
   private String collection;
@@ -39,6 +40,12 @@ public class ZkCollectionTerms implements AutoCloseable {
   public synchronized ZkShardTerms getShard(String shardId) {
     if (!terms.containsKey(shardId)) terms.put(shardId, new ZkShardTerms(collection, shardId, zkClient));
     return terms.get(shardId);
+  }
+
+  public synchronized void remove(String shardId, CoreDescriptor coreDescriptor) {
+    if (getShard(shardId).removeTerm(coreDescriptor)) {
+      terms.remove(shardId).close();
+    }
   }
 
   public void close() {
