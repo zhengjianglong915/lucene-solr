@@ -37,10 +37,14 @@ public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
     if (solrCore.isClosed()) {
       return false;
     }
-    String coreNodeName = solrCore.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
-    if (!terms.canBecomeLeader(coreNodeName)) {
-      log.info("Start recovery on {} because core's term is less than leader's term", coreNodeName);
-      solrCore.getUpdateHandler().getSolrCoreState().doRecovery(solrCore.getCoreContainer(), solrCore.getCoreDescriptor());
+    try {
+      String coreNodeName = solrCore.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
+      if (!terms.canBecomeLeader(coreNodeName)) {
+        log.info("Start recovery on {} because core's term is less than leader's term", coreNodeName);
+        solrCore.getUpdateHandler().getSolrCoreState().doRecovery(solrCore.getCoreContainer(), solrCore.getCoreDescriptor());
+      }
+    } catch (NullPointerException e) {
+      // Expected
     }
     return true;
   }

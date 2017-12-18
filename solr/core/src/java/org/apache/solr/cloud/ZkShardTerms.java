@@ -89,7 +89,9 @@ public class ZkShardTerms implements AutoCloseable{
 
   // package private for testing, only used by tests
   Map<String, Long> getTerms() {
-    return new HashMap<>(terms.terms);
+    synchronized (writingLock) {
+      return new HashMap<>(terms.terms);
+    }
   }
 
   void addListener(CoreTermWatcher listener) {

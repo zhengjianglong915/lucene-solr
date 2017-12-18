@@ -78,6 +78,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
       assertEquals(0L, zkShardTerms.getTerms().get("rep1").longValue());
       assertEquals(0L, zkShardTerms.getTerms().get("rep2").longValue());
     }
+    waitFor(2, () -> rep1Terms.getTerms().size());
     rep1Terms.ensureTermsIsHigher("rep1", Collections.singleton("rep2"));
     assertEquals(1L, rep1Terms.getTerms().get("rep1").longValue());
     assertEquals(0L, rep1Terms.getTerms().get("rep2").longValue());
@@ -150,7 +151,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
         assertEquals(shardTerms.getTerms().get("leader"), Collections.max(shardTerms.getTerms().values()));
         Thread.sleep(100);
       }
-      assertTrue(maxTerm >= Collections.max(shardTerms.getTerms().values()).longValue());
+      assertTrue(maxTerm >= Collections.max(shardTerms.getTerms().values()));
     }
     stop.set(true);
     for (Thread thread : threads) {
