@@ -50,7 +50,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
         .configure();
   }
 
-  public void testParticipationOfReplicas() throws IOException, SolrServerException {
+  public void testParticipationOfReplicas() throws IOException, SolrServerException, InterruptedException {
     String collection = "collection1";
     try (ZkShardTerms zkShardTerms = new ZkShardTerms(collection, "shard2", cluster.getZkClient())) {
       zkShardTerms.registerTerm("replica1");
@@ -64,12 +64,10 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
         .setMaxShardsPerNode(1000)
         .process(cluster.getSolrClient());
     ZkController zkController = cluster.getJettySolrRunners().get(0).getCoreContainer().getZkController();
-    Map<String,Long> terms = zkController.getShardTerms(collection, "shard1").getTerms();
-    assertEquals(2, terms.size());
-    assertArrayEquals(new Long[]{0L, 0L}, terms.values().toArray(new Long[2]));
-    terms = zkController.getShardTerms(collection, "shard2").getTerms();
-    assertEquals(2, terms.size());
-    assertArrayEquals(new Long[]{0L, 0L}, terms.values().toArray(new Long[2]));
+    waitFor(2, () -> zkController.getShardTerms(collection, "shard1").getTerms().size());
+    assertArrayEquals(new Long[]{0L, 0L}, zkController.getShardTerms(collection, "shard1").getTerms().values().toArray(new Long[2]));
+    waitFor(2, () -> zkController.getShardTerms(collection, "shard2").getTerms().size());
+    assertArrayEquals(new Long[]{0L, 0L}, zkController.getShardTerms(collection, "shard1").getTerms().values().toArray(new Long[2]));
   }
 
   public void testRegisterTerm() throws InterruptedException {
