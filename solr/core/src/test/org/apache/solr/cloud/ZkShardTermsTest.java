@@ -67,7 +67,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     waitFor(2, () -> zkController.getShardTerms(collection, "shard1").getTerms().size());
     assertArrayEquals(new Long[]{0L, 0L}, zkController.getShardTerms(collection, "shard1").getTerms().values().toArray(new Long[2]));
     waitFor(2, () -> zkController.getShardTerms(collection, "shard2").getTerms().size());
-    assertArrayEquals(new Long[]{0L, 0L}, zkController.getShardTerms(collection, "shard1").getTerms().values().toArray(new Long[2]));
+    assertArrayEquals(new Long[]{0L, 0L}, zkController.getShardTerms(collection, "shard2").getTerms().values().toArray(new Long[2]));
   }
 
   public void testRegisterTerm() throws InterruptedException {

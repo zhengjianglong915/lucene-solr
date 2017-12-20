@@ -216,7 +216,7 @@ public class ZkShardTerms implements AutoCloseable{
   private void updateTerms(Terms newTerms) {
     boolean isChanged = false;
     synchronized (writingLock) {
-      if (terms == null || newTerms.version != terms.version) {
+      if (terms == null || newTerms.version > terms.version) {
         terms = newTerms;
         isChanged = true;
       }
