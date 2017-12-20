@@ -18,6 +18,7 @@
 package org.apache.solr.cloud;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,8 +36,12 @@ import org.apache.solr.client.solrj.request.CollectionAdminRequest;
 import org.apache.solr.util.TimeOut;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ZkShardTermsTest extends SolrCloudTestCase {
+
+  private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
   @BeforeClass
   public static void setupCluster() throws Exception {
@@ -179,6 +184,14 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
 
     leaderTerms.close();
     replicaTerms.close();
+  }
+
+  public void testEnsureTermsIsHigher() {
+    Map<String, Long> map = new HashMap<>();
+    map.put("leader", 0L);
+    ZkShardTerms.Terms terms = new ZkShardTerms.Terms(map, 0);
+    terms = terms.increaseTerms("leader", Collections.singleton("replica"));
+    assertEquals(1L, terms.getTerm("leader").longValue());
   }
 
   private <T> void waitFor(T expected, Supplier<T> supplier) throws InterruptedException {

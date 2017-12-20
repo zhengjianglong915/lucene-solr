@@ -249,16 +249,22 @@ public class ZkShardTerms implements AutoCloseable{
       return terms.getOrDefault(coreNodeName, 0L) == maxTerm;
     }
 
+    Long getTerm(String coreNodeName) {
+      return terms.get(coreNodeName);
+    }
+
     Terms increaseTerms(String leader, Set<String> replicasInLowerTerms) {
       if (!terms.containsKey(leader)) {
         throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Can not find leader's term " + leader);
       }
 
       boolean changed = false;
+      boolean foundReplicasInLowerTerms = false;
 
       HashMap<String, Long> newValues = new HashMap<>(terms);
       long leaderTerm = newValues.get(leader);
       for (String replica : newValues.keySet()) {
+        if (replicasInLowerTerms.contains(replica)) foundReplicasInLowerTerms = true;
         if (Objects.equals(newValues.get(replica), leaderTerm)) {
           if(replicasInLowerTerms.contains(replica)) {
             changed = true;
@@ -267,7 +273,10 @@ public class ZkShardTerms implements AutoCloseable{
           }
         }
       }
-      if (!changed) return null;
+
+      // We should skip the optimization if there are no replicasInLowerTerms present in local terms,
+      // this may indicate that the current value is stale
+      if (!changed && foundReplicasInLowerTerms) return null;
       return new Terms(newValues, version);
     }
 
