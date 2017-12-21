@@ -100,15 +100,21 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
+  /**
+   * Remove the coreNodeName from terms map and also remove any listeners relate to the core
+   * @return Return true if this object should be closed
+   */
   boolean removeTerm(CoreDescriptor cd) {
+    int numListeners;
     synchronized (listeners) {
       // solrcore already closed
       listeners.removeIf(coreTermWatcher -> !coreTermWatcher.onTermChanged(terms));
+      numListeners = listeners.size();
     }
     Terms newTerms;
     while ( (newTerms = terms.removeTerm(cd.getCloudDescriptor().getCoreNodeName())) != null) {
       try {
-        if (saveTerms(newTerms)) return newTerms.terms.isEmpty();
+        if (saveTerms(newTerms)) return numListeners == 0;
       } catch (KeeperException.NoNodeException e) {
         return true;
       }

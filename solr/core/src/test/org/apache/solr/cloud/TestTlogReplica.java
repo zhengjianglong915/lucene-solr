@@ -147,7 +147,6 @@ public class TestTlogReplica extends SolrCloudTestCase {
   }
   
   @Repeat(iterations=2) // 2 times to make sure cleanup is complete and we can create the same collection
-  @Ignore
   public void testCreateDelete() throws Exception {
     try {
       switch (random().nextInt(3)) {
