@@ -169,6 +169,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     ZkShardTerms replicaTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
     replicaTerms.registerTerm("replica");
     waitFor(2, () -> replicaTerms.getTerms().size());
+    waitFor(2, () -> leaderTerms.getTerms().size());
 
     AtomicInteger count = new AtomicInteger(0);
     // this will get called for almost 2 times
