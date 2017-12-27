@@ -26,6 +26,9 @@ API Changes
 * LUCENE-7996: Queries are now required to produce positive scores.
   (Adrien Grand)
 
+* LUCENE-8099: CustomScoreQuery, BoostedQuery and BoostingQuery have been
+  removed (Alan Woodward)
+
 Changes in Runtime Behavior
 
 * LUCENE-7837: Indices that were created before the previous major version
@@ -65,6 +68,22 @@ API Changes
 * LUCENE-8051: LevensteinDistance renamed to LevenshteinDistance.
   (Pulak Ghosh via Adrien Grand)
 
+* LUCENE-8099: Deprecate CustomScoreQuery, BoostedQuery and BoostingQuery.
+  Users should instead use FunctionScoreQuery, possibly combined with
+  a lucene expression (Alan Woodward)
+
+* LUCENE-8104: Remove facets module compile-time dependency on queries
+  (Alan Woodward)
+
+New Features
+
+* LUCENE-2899: Add new module analysis/opennlp, with analysis components
+  to perform tokenization, part-of-speech tagging, lemmatization and phrase
+  chunking by invoking the corresponding OpenNLP tools. Named entity
+  recognition is also provided as a Solr update request processor.
+  (Lance Norskog, Grant Ingersoll, Joern Kottmann, Em, Kai Gülzau,
+  Rene Nederhand, Robert Muir, Steven Bower, Steve Rowe)
+
 Improvements
 
 * LUCENE-8081: Allow IndexWriter to opt out of flushing on indexing threads
@@ -75,6 +94,15 @@ Improvements
 * LUCENE-8086: spatial-extras Geo3dFactory: Use GeoExactCircle with
   configurable precision for non-spherical planet models.
   (Ignacio Vera via David Smiley)
+
+* LUCENE-8093: TrimFilterFactory implements MultiTermAwareComponent (Alan Woodward)
+
+* LUCENE-8094: TermInSetQuery.toString now returns "field:(A B C)" (Mike McCandless)
+
+Bug Fixes
+
+* LUCENE-8077: Fixed bug in how CheckIndex verifies doc-value iterators.
+  (Xiaoshan Sun via Adrien Grand)
 
 ======================= Lucene 7.2.0 =======================
 

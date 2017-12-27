@@ -30,12 +30,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.cloud.autoscaling.Suggester.Hint;
 import org.apache.solr.client.solrj.impl.ClusterStateProvider;
-import org.apache.solr.client.solrj.impl.SolrClientCloudManager;
 import org.apache.solr.common.MapWriter;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.ReplicaPosition;
 import org.apache.solr.common.util.Pair;
+import org.apache.solr.common.util.TimeSource;
 import org.apache.solr.common.util.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,8 +47,14 @@ import static org.apache.solr.common.util.Utils.time;
 import static org.apache.solr.common.util.Utils.timeElapsed;
 
 public class PolicyHelper {
-  private static ThreadLocal<Map<String, String>> policyMapping = new ThreadLocal<>();
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
+  private static final String POLICY_MAPPING_KEY = "PolicyHelper.policyMapping";
+
+  private static ThreadLocal<Map<String, String>> getPolicyMapping(SolrCloudManager cloudManager) {
+    return (ThreadLocal<Map<String, String>>)cloudManager.getObjectCache()
+        .computeIfAbsent(POLICY_MAPPING_KEY, k -> new ThreadLocal<>());
+  }
 
   public static List<ReplicaPosition> getReplicaLocations(String collName, AutoScalingConfig autoScalingConfig,
                                                           SolrCloudManager cloudManager,
@@ -59,6 +65,7 @@ public class PolicyHelper {
                                                           int pullReplicas,
                                                           List<String> nodesList) {
     List<ReplicaPosition> positions = new ArrayList<>();
+    ThreadLocal<Map<String, String>> policyMapping = getPolicyMapping(cloudManager);
     ClusterStateProvider stateProvider = new DelegatingClusterStateProvider(cloudManager.getClusterStateProvider()) {
       @Override
       public String getPolicyNameByCollection(String coll) {
@@ -138,7 +145,7 @@ public class PolicyHelper {
 
   public static final int SESSION_EXPIRY = 180;//3 seconds
 
-  public static MapWriter getDiagnostics(Policy policy, SolrClientCloudManager cloudManager) {
+  public static MapWriter getDiagnostics(Policy policy, SolrCloudManager cloudManager) {
     Policy.Session session = policy.createSession(cloudManager);
     List<Row> sorted = session.getSorted();
     List<Violation> violations = session.getViolations();
@@ -233,9 +240,10 @@ public class PolicyHelper {
      *
      */
     private void returnSession(SessionWrapper sessionWrapper) {
+      TimeSource timeSource = sessionWrapper.session.cloudManager.getTimeSource();
       synchronized (lockObj) {
         sessionWrapper.status = Status.EXECUTING;
-        log.info("returnSession, curr-time {} sessionWrapper.createTime {}, this.sessionWrapper.createTime {} ", time(MILLISECONDS),
+        log.info("returnSession, curr-time {} sessionWrapper.createTime {}, this.sessionWrapper.createTime {} ", time(timeSource, MILLISECONDS),
             sessionWrapper.createTime,
             this.sessionWrapper.createTime);
         if (sessionWrapper.createTime == this.sessionWrapper.createTime) {
@@ -255,13 +263,14 @@ public class PolicyHelper {
 
 
     public SessionWrapper get(SolrCloudManager cloudManager) throws IOException, InterruptedException {
+      TimeSource timeSource = cloudManager.getTimeSource();
       synchronized (lockObj) {
         if (sessionWrapper.status == Status.NULL ||
-            TimeUnit.SECONDS.convert(System.nanoTime() - sessionWrapper.lastUpdateTime, TimeUnit.NANOSECONDS) > SESSION_EXPIRY) {
+            TimeUnit.SECONDS.convert(timeSource.getTime() - sessionWrapper.lastUpdateTime, TimeUnit.NANOSECONDS) > SESSION_EXPIRY) {
           //no session available or the session is expired
           return createSession(cloudManager);
         } else {
-          long waitStart = time(MILLISECONDS);
+          long waitStart = time(timeSource, MILLISECONDS);
           //the session is not expired
           log.debug("reusing a session {}", this.sessionWrapper.createTime);
           if (this.sessionWrapper.status == Status.UNUSED || this.sessionWrapper.status == Status.EXECUTING) {
@@ -269,13 +278,13 @@ public class PolicyHelper {
             return sessionWrapper;
           } else {
             //status= COMPUTING it's being used for computing. computing is
-            log.debug("session being used. waiting... current time {} ", time(MILLISECONDS));
+            log.debug("session being used. waiting... current time {} ", time(timeSource, MILLISECONDS));
             try {
               lockObj.wait(10 * 1000);//wait for a max of 10 seconds
             } catch (InterruptedException e) {
               log.info("interrupted... ");
             }
-            log.debug("out of waiting curr-time:{} time-elapsed {}", time(MILLISECONDS), timeElapsed(waitStart, MILLISECONDS));
+            log.debug("out of waiting curr-time:{} time-elapsed {}", time(timeSource, MILLISECONDS), timeElapsed(timeSource, waitStart, MILLISECONDS));
             // now this thread has woken up because it got timed out after 10 seconds or it is notified after
             //the session was returned from another COMPUTING operation
             if (this.sessionWrapper.status == Status.UNUSED || this.sessionWrapper.status == Status.EXECUTING) {
@@ -289,8 +298,6 @@ public class PolicyHelper {
           }
         }
       }
-
-
     }
 
     private SessionWrapper createSession(SolrCloudManager cloudManager) throws InterruptedException, IOException {
@@ -361,7 +368,9 @@ public class PolicyHelper {
     }
 
     public SessionWrapper(Policy.Session session, SessionRef ref) {
-      lastUpdateTime = createTime = System.nanoTime();
+      lastUpdateTime = createTime = session != null ?
+          session.cloudManager.getTimeSource().getTime() :
+          TimeSource.NANO_TIME.getTime();
       this.session = session;
       this.status = Status.UNUSED;
       this.ref = ref;
@@ -372,7 +381,9 @@ public class PolicyHelper {
     }
 
     public SessionWrapper update(Policy.Session session) {
-      this.lastUpdateTime = System.nanoTime();
+      this.lastUpdateTime = session != null ?
+          session.cloudManager.getTimeSource().getTime() :
+          TimeSource.NANO_TIME.getTime();
       this.session = session;
       return this;
     }

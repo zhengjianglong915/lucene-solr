@@ -281,11 +281,15 @@ public class StreamHandler extends RequestHandlerBase implements SolrCoreAware, 
         .withFunctionName("olsRegress", OLSRegressionEvaluator.class)
         .withFunctionName("derivative", DerivativeEvaluator.class)
         .withFunctionName("spline", SplineEvaluator.class)
-
+        .withFunctionName("ttest", TTestEvaluator.class)
+        .withFunctionName("pairedTtest", PairedTTestEvaluator.class)
+        .withFunctionName("multiVariateNormalDistribution", MultiVariateNormalDistributionEvaluator.class)
+        .withFunctionName("integrate", IntegrateEvaluator.class)
+        .withFunctionName("density", DensityEvaluator.class)
 
         // Boolean Stream Evaluators
 
-        .withFunctionName("and", AndEvaluator.class)
+            .withFunctionName("and", AndEvaluator.class)
         .withFunctionName("eor", ExclusiveOrEvaluator.class)
         .withFunctionName("eq", EqualToEvaluator.class)
         .withFunctionName("gt", GreaterThanEvaluator.class)
