@@ -33,6 +33,7 @@ import java.util.function.Supplier;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
+import org.apache.solr.common.util.TimeSource;
 import org.apache.solr.util.TimeOut;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -101,7 +102,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     expectedTerms.put("rep1", 1L);
     expectedTerms.put("rep2", 1L);
 
-    TimeOut timeOut = new TimeOut(10, TimeUnit.SECONDS);
+    TimeOut timeOut = new TimeOut(10, TimeUnit.SECONDS, new TimeSource.CurrentTimeSource());
     while (!timeOut.hasTimedOut()) {
       if (Objects.equals(expectedTerms, rep1Terms.getTerms()) && Objects.equals(expectedTerms, rep2Terms.getTerms())) break;
     }
@@ -148,7 +149,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     long maxTerm = 0;
     try (ZkShardTerms shardTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient())) {
       shardTerms.registerTerm("leader");
-      TimeOut timeOut = new TimeOut(10, TimeUnit.SECONDS);
+      TimeOut timeOut = new TimeOut(10, TimeUnit.SECONDS, new TimeSource.CurrentTimeSource());
       while (!timeOut.hasTimedOut()) {
         maxTerm++;
         assertEquals(shardTerms.getTerms().get("leader"), Collections.max(shardTerms.getTerms().values()));
@@ -194,7 +195,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
   }
 
   private <T> void waitFor(T expected, Supplier<T> supplier) throws InterruptedException {
-    TimeOut timeOut = new TimeOut(2, TimeUnit.SECONDS);
+    TimeOut timeOut = new TimeOut(2, TimeUnit.SECONDS, new TimeSource.CurrentTimeSource());
     while (!timeOut.hasTimedOut()) {
       if (expected == supplier.get()) return;
       Thread.sleep(100);

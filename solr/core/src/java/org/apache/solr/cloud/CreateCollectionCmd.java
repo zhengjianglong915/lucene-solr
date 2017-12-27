@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.solr.client.solrj.cloud.autoscaling.AlreadyExistsException;
 import org.apache.solr.client.solrj.cloud.autoscaling.AutoScalingConfig;
+import org.apache.solr.client.solrj.cloud.autoscaling.BadVersionException;
 import org.apache.solr.client.solrj.cloud.autoscaling.DistribStateManager;
 import org.apache.solr.client.solrj.cloud.autoscaling.Policy;
 import org.apache.solr.client.solrj.cloud.autoscaling.PolicyHelper;
@@ -399,10 +400,14 @@ public class CreateCollectionCmd implements Cmd {
     String collectionPath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection;
     String termsPath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection + "/terms";
     try {
-      if (zkClient.exists(termsPath, true)) {
-        zkClient.clean(termsPath);
+      if (stateManager.hasData(termsPath)) {
+        List<String> paths = stateManager.listData(termsPath);
+        for (String path : paths) {
+          stateManager.removeData(termsPath + "/" + path, -1);
+        }
+        stateManager.removeData(termsPath, -1);
       }
-    } catch (KeeperException | InterruptedException e) {
+    } catch (KeeperException | InterruptedException | IOException | BadVersionException e) {
       throw new SolrException(ErrorCode.SERVER_ERROR, "Error deleting old term nodes for collection from Zookeeper", e);
     }
     try {
