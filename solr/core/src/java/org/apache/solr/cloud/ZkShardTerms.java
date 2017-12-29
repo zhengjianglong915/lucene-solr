@@ -90,7 +90,7 @@ public class ZkShardTerms implements AutoCloseable{
   // package private for testing, only used by tests
   Map<String, Long> getTerms() {
     synchronized (writingLock) {
-      return new HashMap<>(terms.terms);
+      return new HashMap<>(terms.values);
     }
   }
 
@@ -152,10 +152,10 @@ public class ZkShardTerms implements AutoCloseable{
   }
 
   private boolean saveTerms(Terms newTerms) throws KeeperException.NoNodeException {
-    byte[] znodeData = Utils.toJSON(newTerms.terms);
+    byte[] znodeData = Utils.toJSON(newTerms.values);
     try {
       Stat stat = zkClient.setData(znodePath, znodeData, newTerms.version, true);
-      updateTerms(new Terms(newTerms.terms, stat.getVersion()));
+      updateTerms(new Terms(newTerms.values, stat.getVersion()));
       return true;
     } catch (KeeperException.BadVersionException e) {
       log.info("Failed to save terms, version is not match, retrying");
@@ -236,37 +236,37 @@ public class ZkShardTerms implements AutoCloseable{
   }
 
   static class Terms {
-    private final Map<String, Long> terms;
+    private final Map<String, Long> values;
     private final int version;
 
     public Terms () {
       this(new HashMap<>(), 0);
     }
 
-    public Terms(Map<String, Long> terms, int version) {
-      this.terms = terms;
+    public Terms(Map<String, Long> values, int version) {
+      this.values = values;
       this.version = version;
     }
 
     boolean canBecomeLeader(String coreNodeName) {
-      if (terms.isEmpty()) return true;
-      long maxTerm = Collections.max(terms.values());
-      return terms.getOrDefault(coreNodeName, 0L) == maxTerm;
+      if (values.isEmpty()) return true;
+      long maxTerm = Collections.max(values.values());
+      return values.getOrDefault(coreNodeName, 0L) == maxTerm;
     }
 
     Long getTerm(String coreNodeName) {
-      return terms.get(coreNodeName);
+      return values.get(coreNodeName);
     }
 
     Terms increaseTerms(String leader, Set<String> replicasInLowerTerms) {
-      if (!terms.containsKey(leader)) {
+      if (!values.containsKey(leader)) {
         throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Can not find leader's term " + leader);
       }
 
       boolean changed = false;
       boolean foundReplicasInLowerTerms = false;
 
-      HashMap<String, Long> newValues = new HashMap<>(terms);
+      HashMap<String, Long> newValues = new HashMap<>(values);
       long leaderTerm = newValues.get(leader);
       for (String replica : newValues.keySet()) {
         if (replicasInLowerTerms.contains(replica)) foundReplicasInLowerTerms = true;
@@ -286,17 +286,17 @@ public class ZkShardTerms implements AutoCloseable{
     }
 
     Terms removeTerm(String coreNodeName) {
-      if (!terms.containsKey(coreNodeName)) return null;
+      if (!values.containsKey(coreNodeName)) return null;
 
-      HashMap<String, Long> newValues = new HashMap<>(terms);
+      HashMap<String, Long> newValues = new HashMap<>(values);
       newValues.remove(coreNodeName);
       return new Terms(newValues, version);
     }
 
     Terms registerTerm(String coreNodeName) {
-      if (terms.containsKey(coreNodeName)) return null;
+      if (values.containsKey(coreNodeName)) return null;
 
-      HashMap<String, Long> newValues = new HashMap<>(terms);
+      HashMap<String, Long> newValues = new HashMap<>(values);
       newValues.put(coreNodeName, 0L);
       return new Terms(newValues, version);
     }
@@ -304,13 +304,13 @@ public class ZkShardTerms implements AutoCloseable{
     Terms setEqualsToMax(String coreNodeName) {
       long maxTerm;
       try {
-        maxTerm = Collections.max(terms.values());
+        maxTerm = Collections.max(values.values());
       } catch (NoSuchElementException e){
         maxTerm = 0;
       }
-      if (terms.get(coreNodeName) == maxTerm) return null;
+      if (values.get(coreNodeName) == maxTerm) return null;
 
-      HashMap<String, Long> newValues = new HashMap<>(terms);
+      HashMap<String, Long> newValues = new HashMap<>(values);
       newValues.put(coreNodeName, maxTerm);
       return new Terms(newValues, version);
     }
