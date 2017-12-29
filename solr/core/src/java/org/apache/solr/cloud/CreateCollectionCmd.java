@@ -407,7 +407,10 @@ public class CreateCollectionCmd implements Cmd {
         }
         stateManager.removeData(termsPath, -1);
       }
-    } catch (KeeperException | InterruptedException | IOException | BadVersionException e) {
+    } catch (InterruptedException e) {
+      Thread.interrupted();
+      throw new SolrException(ErrorCode.SERVER_ERROR, "Error deleting old term nodes for collection from Zookeeper", e);
+    } catch (KeeperException | IOException | BadVersionException e) {
       throw new SolrException(ErrorCode.SERVER_ERROR, "Error deleting old term nodes for collection from Zookeeper", e);
     }
     try {
