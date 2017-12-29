@@ -19,7 +19,6 @@ package org.apache.solr.cloud;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
@@ -525,12 +524,8 @@ public class RecoveryStrategy implements Runnable, Closeable {
     while (!successfulRecovery && !Thread.currentThread().isInterrupted() && !isClosed()) { // don't use interruption or it will close channels though
       try {
         CloudDescriptor cloudDesc = core.getCoreDescriptor().getCloudDescriptor();
-        final Replica leader = checkConnectionToLeader(ourUrl, cloudDesc);
-        if (isClosed()) {
-          LOG.info("RecoveryStrategy has been closed");
-          break;
-        }
-
+        final Replica leader = zkStateReader.getLeaderRetry(cloudDesc.getCollectionName(), cloudDesc.getShardId());
+        //TODO we should try to ping to the leader to ensure the network is healthy
         boolean isLeader = leader.getCoreUrl().equals(ourUrl);
         if (isLeader && !cloudDesc.isLeader()) {
           throw new SolrException(ErrorCode.SERVER_ERROR, "Cloud state still says we are leader.");
