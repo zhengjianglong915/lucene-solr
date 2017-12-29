@@ -44,7 +44,7 @@ public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
         solrCore.getUpdateHandler().getSolrCoreState().doRecovery(solrCore.getCoreContainer(), solrCore.getCoreDescriptor());
       }
     } catch (NullPointerException e) {
-      // Expected
+      log.info("NPE when getting coreNodeName, hence do not start recovery process");
     }
     return true;
   }
