@@ -168,18 +168,16 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     ZkShardTerms leaderTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
     leaderTerms.registerTerm("leader");
     ZkShardTerms replicaTerms = new ZkShardTerms(collection, "shard1", cluster.getZkClient());
-    replicaTerms.registerTerm("replica");
-    waitFor(2, () -> replicaTerms.getTerms().size());
-    waitFor(2, () -> leaderTerms.getTerms().size());
-
     AtomicInteger count = new AtomicInteger(0);
-    // this will get called for almost 2 times
-    ZkShardTerms.CoreTermWatcher watcher = terms -> count.incrementAndGet() < 2;
+    // this will get called for almost 3 times
+    ZkShardTerms.CoreTermWatcher watcher = terms -> count.incrementAndGet() < 3;
     replicaTerms.addListener(watcher);
-    leaderTerms.ensureTermsIsHigher("leader", Collections.singleton("replica"));
+    replicaTerms.registerTerm("replica");
     waitFor(1, count::get);
-    replicaTerms.setEqualsToMax("replica");
+    leaderTerms.ensureTermsIsHigher("leader", Collections.singleton("replica"));
     waitFor(2, count::get);
+    replicaTerms.setEqualsToMax("replica");
+    waitFor(3, count::get);
     assertEquals(0, replicaTerms.getNumListeners());
 
     leaderTerms.close();

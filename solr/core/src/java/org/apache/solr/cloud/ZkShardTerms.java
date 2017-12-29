@@ -153,7 +153,6 @@ public class ZkShardTerms implements AutoCloseable{
 
   private boolean saveTerms(Terms newTerms) throws KeeperException.NoNodeException {
     byte[] znodeData = Utils.toJSON(newTerms.terms);
-    // must retry on conn loss otherwise future election attempts may assume wrong LIR state
     try {
       Stat stat = zkClient.setData(znodePath, znodeData, newTerms.version, true);
       updateTerms(new Terms(newTerms.terms, stat.getVersion()));
