@@ -101,8 +101,8 @@ public class ZkShardTerms implements AutoCloseable{
   }
 
   /**
-   * Remove the coreNodeName from terms map and also remove any listeners relate to the core
-   * @return Return true if this object should be closed
+   * Remove the coreNodeName from terms map and also remove any expired listeners
+   * @return Return true if this object should not be reused
    */
   boolean removeTerm(CoreDescriptor cd) {
     int numListeners;
