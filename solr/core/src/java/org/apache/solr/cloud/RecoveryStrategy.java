@@ -538,8 +538,6 @@ public class RecoveryStrategy implements Runnable, Closeable {
           return;
         }
 
-        //TODO check connection to the leader
-
         LOG.info("Begin buffering updates. core=[{}]", coreName);
         ulog.bufferUpdates();
         replayed = false;
