@@ -741,26 +741,6 @@ public class RecoveryStrategy implements Runnable, Closeable {
     LOG.info("Finished recovery process, successful=[{}]", Boolean.toString(successfulRecovery));
   }
 
-  private Replica checkConnectionToLeader(String ourUrl, CloudDescriptor cloudDesc) throws InterruptedException {
-    while (true) {
-      final Replica leaderReplica = zkStateReader.getLeaderRetry(
-          cloudDesc.getCollectionName(), cloudDesc.getShardId());
-      if (isClosed()) {
-        return leaderReplica;
-      }
-      if (leaderReplica.getCoreUrl().equals(ourUrl)) {
-        return leaderReplica;
-      }
-      try (Socket socket = new Socket()) {
-        URL url = new URL(leaderReplica.getBaseUrl());
-        socket.connect(new InetSocketAddress(url.getHost(), url.getPort()), 2000);
-        return leaderReplica;
-      } catch (IOException e) {
-        LOG.info("Failed to connect leader {}, try again", leaderReplica.getBaseUrl());
-      }
-    }
-  }
-
   public static Runnable testing_beforeReplayBufferingUpdates;
 
   final private Future<RecoveryInfo> replay(SolrCore core)
