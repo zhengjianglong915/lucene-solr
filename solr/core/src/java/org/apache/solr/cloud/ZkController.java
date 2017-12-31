@@ -1714,8 +1714,8 @@ public class ZkController {
     if (!isLeader && !SKIP_AUTO_RECOVERY) {
 
       if (!getShardTerms(collection, shard).canBecomeLeader(myCoreNodeName)) {
-        log.debug("Replica " + myCoreNodeName +
-            " is already in leader-initiated recovery, so not waiting for leader to see down state.");
+        log.debug("Term of replica " + myCoreNodeName +
+            " is already less than leader, so not waiting for leader to see down state.");
       } else {
 
         log.info("Replica " + myCoreNodeName +

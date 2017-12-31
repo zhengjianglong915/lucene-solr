@@ -176,7 +176,7 @@ public class HttpPartitionTest extends AbstractFullDistribZkTestBase {
     Collection<Slice> slices = cs.getCollection(testCollectionName).getActiveSlices();
     Slice slice = slices.iterator().next();
     Replica partitionedReplica = slice.getReplica(notLeaders.get(0).getName());
-    assertEquals("The partitioned replica did not get marked down",
+    assertEquals("The partitioned replica did not go into recovering",
         Replica.State.RECOVERING.toString(), partitionedReplica.getStr(ZkStateReader.STATE_PROP));
     log.info("un-partitioning replica :  " + notLeaders.get(0));
 
