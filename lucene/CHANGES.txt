@@ -61,6 +61,14 @@ Optimizations
 * LUCENE-4100: Disjunctions now support faster collection of top hits when the
   total hit count is not required. (Stefan Pohl, Adrien Grand, Robert Muir)
 
+* LUCENE-7993: Phrase queries are now faster if total hit counts are not
+  required. (Adrien Grand)
+
+* LUCENE-8109: Boolean queries propagate information about the minimum
+  competitive score in order to make collection faster if there are disjunctions
+  or phrase queries as sub queries, which know how to leverage this information
+  to run faster. (Adrien Grand)
+
 ======================= Lucene 7.3.0 =======================
 
 API Changes
@@ -103,6 +111,11 @@ Bug Fixes
 
 * LUCENE-8077: Fixed bug in how CheckIndex verifies doc-value iterators.
   (Xiaoshan Sun via Adrien Grand)
+
+Other
+
+* LUCENE-8111: IndexOrDocValuesQuery Javadoc references outdated method name.
+  (Kai Chan via Adrien Grand)
 
 ======================= Lucene 7.2.0 =======================
 

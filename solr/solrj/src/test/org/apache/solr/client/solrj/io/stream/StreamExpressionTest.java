@@ -5493,6 +5493,51 @@ public class StreamExpressionTest extends SolrCloudTestCase {
     assertTrue(tuples.get(3).getDouble("max(price_f)").equals(400D));
     assertTrue(tuples.get(3).getDouble("min(price_f)").equals(400D));
 
+
+    expr = "timeseries("+COLLECTIONORALIAS+", q=\"*:*\", start=\"2012-01-01T01:00:00.000Z\", " +
+        "end=\"2016-12-01T01:00:00.000Z\", " +
+        "gap=\"+1YEAR\", " +
+        "field=\"test_dt\", " +
+        "format=\"yyyy-MM\", " +
+        "count(*), sum(price_f), max(price_f), min(price_f))";
+    paramsLoc = new ModifiableSolrParams();
+    paramsLoc.set("expr", expr);
+    paramsLoc.set("qt", "/stream");
+
+    solrStream = new SolrStream(url, paramsLoc);
+
+    solrStream.setStreamContext(context);
+    tuples = getTuples(solrStream);
+    assertTrue(tuples.size() == 5);
+    assertTrue(tuples.get(0).get("test_dt").equals("2012-01"));
+    assertTrue(tuples.get(0).getLong("count(*)").equals(0L));
+    assertTrue(tuples.get(0).getDouble("sum(price_f)") == null);
+    assertTrue(tuples.get(0).getDouble("max(price_f)") == null);
+    assertTrue(tuples.get(0).getDouble("min(price_f)") == null);
+
+    assertTrue(tuples.get(1).get("test_dt").equals("2013-01"));
+    assertTrue(tuples.get(1).getLong("count(*)").equals(100L));
+    assertTrue(tuples.get(1).getDouble("sum(price_f)").equals(10000D));
+    assertTrue(tuples.get(1).getDouble("max(price_f)").equals(100D));
+    assertTrue(tuples.get(1).getDouble("min(price_f)").equals(100D));
+
+    assertTrue(tuples.get(2).get("test_dt").equals("2014-01"));
+    assertTrue(tuples.get(2).getLong("count(*)").equals(50L));
+    assertTrue(tuples.get(2).getDouble("sum(price_f)").equals(25000D));
+    assertTrue(tuples.get(2).getDouble("max(price_f)").equals(500D));
+    assertTrue(tuples.get(2).getDouble("min(price_f)").equals(500D));
+
+    assertTrue(tuples.get(3).get("test_dt").equals("2015-01"));
+    assertTrue(tuples.get(3).getLong("count(*)").equals(50L));
+    assertTrue(tuples.get(3).getDouble("sum(price_f)").equals(15000D));
+    assertTrue(tuples.get(3).getDouble("max(price_f)").equals(300D));
+    assertTrue(tuples.get(3).getDouble("min(price_f)").equals(300D));
+
+    assertTrue(tuples.get(4).get("test_dt").equals("2016-01"));
+    assertTrue(tuples.get(4).getLong("count(*)").equals(50L));
+    assertTrue(tuples.get(4).getDouble("sum(price_f)").equals(20000D));
+    assertTrue(tuples.get(4).getDouble("max(price_f)").equals(400D));
+    assertTrue(tuples.get(4).getDouble("min(price_f)").equals(400D));
   }
 
   @Test
@@ -7358,7 +7403,6 @@ public class StreamExpressionTest extends SolrCloudTestCase {
     }
   }
 
-
   @Test
   public void testAnova() throws Exception {
     String cexpr = "anova(array(1,2,3,5,4,6), array(5,2,3,5,4,6), array(1,2,7,5,4,6))";
@@ -7468,6 +7512,23 @@ public class StreamExpressionTest extends SolrCloudTestCase {
     assertEquals((double) out.get(3), 5.5, .0);
   }
 
+  @Test
+  public void testMannWhitney() throws Exception {
+    String cexpr = "mannWhitney(array(0.15,0.10,0.11,0.24,0.08,0.08,0.10,0.10,0.10,0.12,0.04,0.07), " +
+                               "array(0.10,0.20,0.30,0.10,0.10,0.02,0.05,0.07))";
+    ModifiableSolrParams paramsLoc = new ModifiableSolrParams();
+    paramsLoc.set("expr", cexpr);
+    paramsLoc.set("qt", "/stream");
+    String url = cluster.getJettySolrRunners().get(0).getBaseUrl().toString()+"/"+COLLECTIONORALIAS;
+    TupleStream solrStream = new SolrStream(url, paramsLoc);
+    StreamContext context = new StreamContext();
+    solrStream.setStreamContext(context);
+    List<Tuple> tuples = getTuples(solrStream);
+    assertTrue(tuples.size() == 1);
+    Map out = (Map)tuples.get(0).get("return-value");
+    assertEquals((double) out.get("u-statistic"), 52.5, .1);
+    assertEquals((double) out.get("p-value"), 0.7284, .001);
+  }
 
   @Test
   public void testMovingMedian() throws Exception {
@@ -7487,6 +7548,23 @@ public class StreamExpressionTest extends SolrCloudTestCase {
     assertEquals(out.get(1).doubleValue(), 9.0, .0);
     assertEquals(out.get(2).doubleValue(), 10.0, .0);
   }
+
+  @Test
+  public void testSumSq() throws Exception {
+    String cexpr = "sumSq(array(-3,-2.5, 10))";
+    ModifiableSolrParams paramsLoc = new ModifiableSolrParams();
+    paramsLoc.set("expr", cexpr);
+    paramsLoc.set("qt", "/stream");
+    String url = cluster.getJettySolrRunners().get(0).getBaseUrl().toString()+"/"+COLLECTIONORALIAS;
+    TupleStream solrStream = new SolrStream(url, paramsLoc);
+    StreamContext context = new StreamContext();
+    solrStream.setStreamContext(context);
+    List<Tuple> tuples = getTuples(solrStream);
+    assertTrue(tuples.size() == 1);
+    Number sumSq = (Number)tuples.get(0).get("return-value");
+    assertEquals(sumSq.doubleValue(), 115.25D, 0.0D);
+  }
+
 
   @Test
   public void testMonteCarlo() throws Exception {

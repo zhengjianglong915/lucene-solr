@@ -68,6 +68,9 @@ Bug Fixes
 
 * SOLR-11783: Rename core in solr standalone mode is not persisted (Erick Erickson)
 
+* SOLR-11555: If the query terms reduce to nothing, filter(clause) produces an NPE whereas
+  fq=clause does not (Erick Erickson)
+
 Optimizations
 ----------------------
 
@@ -87,6 +90,10 @@ Other Changes
 * SOLR-11701: Upgrade to Tika 1.17 when available (Tim Allison, Karthik Ramachandran via Erick Erickson)
 
 * SOLR-11703: Solr Should Send Log Notifications if Ulimits are too low (Kevin Cowan via Erick Eickson)
+
+* SOLR-11793: Reduce code duplication w.r.t. RestTestHarness(es). (Christine Poerschke)
+
+* SOLR-7733: remove "optimize" from the UI. (Erick Erickson)
 
 ==================  7.2.0 ==================
 
