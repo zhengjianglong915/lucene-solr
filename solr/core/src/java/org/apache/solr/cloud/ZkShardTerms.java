@@ -65,7 +65,7 @@ public class ZkShardTerms implements AutoCloseable{
     this.shard = shard;
     this.zkClient = zkClient;
     ensureTermNodeExist();
-    updateTerms();
+    refreshTerms();
     ObjectReleaseTracker.track(this);
   }
 
@@ -155,11 +155,11 @@ public class ZkShardTerms implements AutoCloseable{
     byte[] znodeData = Utils.toJSON(newTerms.values);
     try {
       Stat stat = zkClient.setData(znodePath, znodeData, newTerms.version, true);
-      updateTerms(new Terms(newTerms.values, stat.getVersion()));
+      setNewTerms(new Terms(newTerms.values, stat.getVersion()));
       return true;
     } catch (KeeperException.BadVersionException e) {
       log.info("Failed to save terms, version is not match, retrying");
-      updateTerms();
+      refreshTerms();
     } catch (KeeperException.NoNodeException e) {
       throw e;
     } catch (Exception e) {
@@ -196,20 +196,20 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
-  private void updateTerms() {
+  private void refreshTerms() {
     try {
       Watcher watcher = null;
       if (numWatcher.compareAndSet(0, 1)) {
         watcher = event -> {
           numWatcher.decrementAndGet();
-          updateTerms();
+          refreshTerms();
         };
       }
 
       Stat stat = new Stat();
       byte[] data = zkClient.getData(znodePath, watcher, stat, true);
       Terms newTerms = new Terms((Map<String, Long>) Utils.fromJSON(data), stat.getVersion());
-      updateTerms(newTerms);
+      setNewTerms(newTerms);
     } catch (InterruptedException e) {
       Thread.interrupted();
       throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
@@ -218,7 +218,7 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
-  private void updateTerms(Terms newTerms) {
+  private void setNewTerms(Terms newTerms) {
     boolean isChanged = false;
     synchronized (writingLock) {
       if (terms == null || newTerms.version > terms.version) {
