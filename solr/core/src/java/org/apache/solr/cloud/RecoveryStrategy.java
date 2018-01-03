@@ -35,8 +35,10 @@ import org.apache.solr.client.solrj.impl.HttpSolrClient.HttpUriRequestResponse;
 import org.apache.solr.client.solrj.request.AbstractUpdateRequest;
 import org.apache.solr.client.solrj.request.CoreAdminRequest.WaitForState;
 import org.apache.solr.client.solrj.request.UpdateRequest;
+import org.apache.solr.client.solrj.response.SolrPingResponse;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrException.ErrorCode;
+import org.apache.solr.common.cloud.DocCollection;
 import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.Slice;
 import org.apache.solr.common.cloud.ZkCoreNodeProps;
@@ -521,8 +523,12 @@ public class RecoveryStrategy implements Runnable, Closeable {
     while (!successfulRecovery && !Thread.currentThread().isInterrupted() && !isClosed()) { // don't use interruption or it will close channels though
       try {
         CloudDescriptor cloudDesc = core.getCoreDescriptor().getCloudDescriptor();
-        final Replica leader = zkStateReader.getLeaderRetry(cloudDesc.getCollectionName(), cloudDesc.getShardId());
-        //TODO we should try to ping to the leader to ensure the network is healthy
+        final Replica leader = pingLeader(ourUrl, core.getCoreDescriptor(), true);
+        if (isClosed()) {
+          LOG.info("RecoveryStrategy has been closed");
+          break;
+        }
+
         boolean isLeader = leader.getCoreUrl().equals(ourUrl);
         if (isLeader && !cloudDesc.isLeader()) {
           throw new SolrException(ErrorCode.SERVER_ERROR, "Cloud state still says we are leader.");
@@ -736,6 +742,48 @@ public class RecoveryStrategy implements Runnable, Closeable {
     }
 
     LOG.info("Finished recovery process, successful=[{}]", Boolean.toString(successfulRecovery));
+  }
+
+  private final Replica pingLeader(String ourUrl, CoreDescriptor coreDesc, boolean mayPutReplicaAsDown) throws Exception {
+    int numTried = 0;
+    while (true) {
+      CloudDescriptor cloudDesc = coreDesc.getCloudDescriptor();
+      DocCollection docCollection = zkStateReader.getClusterState().getCollection(cloudDesc.getCollectionName());
+      if (mayPutReplicaAsDown && numTried == 1 &&
+          docCollection.getReplica(coreDesc.getCloudDescriptor().getCoreNodeName()).getState() == Replica.State.ACTIVE) {
+        // this operation may take a long time, by putting replica into DOWN state, client won't query this replica
+        zkController.publish(coreDesc, Replica.State.DOWN);
+      }
+      numTried++;
+      final Replica leaderReplica = zkStateReader.getLeaderRetry(
+          cloudDesc.getCollectionName(), cloudDesc.getShardId());
+
+      if (isClosed()) {
+        return leaderReplica;
+      }
+
+      if (leaderReplica.getCoreUrl().equals(ourUrl)) {
+        return leaderReplica;
+      }
+
+      try (HttpSolrClient httpSolrClient = new HttpSolrClient.Builder(leaderReplica.getCoreUrl())
+          .withSocketTimeout(1000)
+          .withConnectionTimeout(1000)
+          .build()) {
+        SolrPingResponse resp = httpSolrClient.ping();
+        return leaderReplica;
+      } catch (IOException e) {
+        LOG.info("Failed to connect leader {} on recovery, try again", leaderReplica.getBaseUrl(), e);
+        Thread.sleep(500);
+      } catch (Exception e) {
+        if (e.getCause() instanceof IOException) {
+          LOG.info("Failed to connect leader {} on recovery, try again", leaderReplica.getBaseUrl(), e);
+          Thread.sleep(500);
+        } else {
+          return leaderReplica;
+        }
+      }
+    }
   }
 
   public static Runnable testing_beforeReplayBufferingUpdates;
