@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -312,7 +313,8 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
         }
       }
       coreNodeName = core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
-      if (!zkController.getShardTerms(collection, shardId).canBecomeLeader(coreNodeName)) {
+      if (zkController.getShardTerms(collection, shardId).registered(coreNodeName)
+          && !zkController.getShardTerms(collection, shardId).canBecomeLeader(coreNodeName)) {
         // no need to do recovery here, we already has term less than leader term, the recovery will be triggered later
         log.info("Can not become leader, this core has term less than leader's term");
         cancelElection();
@@ -451,6 +453,9 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
       boolean isLeader = true;
       if (!isClosed) {
         try {
+          //TODO remove this on 8.0, SOLR-11812
+          // we must check LIR before registering as leader
+          checkLIR(coreName, allReplicasInLine);
           if (replicaType == Replica.Type.TLOG) {
             // stop replicate from old leader
             zkController.stopReplicationFromLeader(coreName);
@@ -499,6 +504,15 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
           }
         }
 
+        if (isLeader) {
+          // check for any replicas in my shard that were set to down by the previous leader
+          try {
+            startLeaderInitiatedRecoveryOnReplicas(coreName);
+          } catch (Exception exc) {
+            // don't want leader election to fail because of
+            // an error trying to tell others to recover
+          }
+        }
       } else {
         cancelElection();
       }
@@ -527,6 +541,107 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
     if (docCollection == null) return null;
     return docCollection.getReplica(replicaName);
   }
+
+  //TODO remove this method on 8.0, SOLR-11812
+  public void checkLIR(String coreName, boolean allReplicasInLine)
+      throws InterruptedException, KeeperException, IOException {
+    if (allReplicasInLine) {
+      log.info("Found all replicas participating in election, clear LIR");
+      // SOLR-8075: A bug may allow the proper leader to get marked as LIR DOWN and
+      // if we are marked as DOWN but were able to become the leader, we remove
+      // the DOWN entry here so that we don't fail publishing ACTIVE due to being in LIR.
+      // We only do this if all the replicas participated in the election just in case
+      // this was a valid LIR entry and the proper leader replica is missing.
+      try (SolrCore core = cc.getCore(coreName)) {
+        final Replica.State lirState = zkController.getLeaderInitiatedRecoveryState(collection, shardId,
+            core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName());
+        if (lirState == Replica.State.DOWN) {
+          // We can do this before registering as leader because only setting DOWN requires that
+          // we are already registered as leader, and here we are setting ACTIVE
+          // The fact that we just won the zk leader election provides a quasi lock on setting this state, but
+          // we should improve this: see SOLR-8075 discussion
+          zkController.updateLeaderInitiatedRecoveryState(collection, shardId,
+              leaderProps.getStr(ZkStateReader.CORE_NODE_NAME_PROP), Replica.State.ACTIVE, core.getCoreDescriptor(), true);
+        }
+      }
+
+    } else {
+      try (SolrCore core = cc.getCore(coreName)) {
+        if (core != null) {
+          final Replica.State lirState = zkController.getLeaderInitiatedRecoveryState(collection, shardId,
+              core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName());
+          if (lirState == Replica.State.DOWN || lirState == Replica.State.RECOVERING) {
+            log.warn("The previous leader marked me " + core.getName()
+                + " as " + lirState.toString() + " and I haven't recovered yet, so I shouldn't be the leader.");
+
+            throw new SolrException(ErrorCode.SERVER_ERROR, "Leader Initiated Recovery prevented leadership");
+          }
+        }
+      }
+    }
+  }
+
+  //TODO remove this method on 8.0, SOLR-11812
+  private void startLeaderInitiatedRecoveryOnReplicas(String coreName) throws Exception {
+    try (SolrCore core = cc.getCore(coreName)) {
+      CloudDescriptor cloudDesc = core.getCoreDescriptor().getCloudDescriptor();
+      String coll = cloudDesc.getCollectionName();
+      String shardId = cloudDesc.getShardId();
+      String coreNodeName = cloudDesc.getCoreNodeName();
+
+      if (coll == null || shardId == null) {
+        log.error("Cannot start leader-initiated recovery on new leader (core="+
+            coreName+",coreNodeName=" + coreNodeName + ") because collection and/or shard is null!");
+        return;
+      }
+
+      String znodePath = zkController.getLeaderInitiatedRecoveryZnodePath(coll, shardId);
+      List<String> replicas = null;
+      try {
+        replicas = zkClient.getChildren(znodePath, null, false);
+      } catch (NoNodeException nne) {
+        // this can be ignored
+      }
+
+      if (replicas != null && replicas.size() > 0) {
+        for (String replicaCoreNodeName : replicas) {
+
+          if (coreNodeName.equals(replicaCoreNodeName))
+            continue; // added safe-guard so we don't mark this core as down
+
+          if (zkController.getShardTerms(collection, shardId).registered(replicaCoreNodeName)) {
+            // this replica is registered its term so it is running with the new LIR implementation
+            // we can put this replica into recovery by increase our terms
+            zkController.getShardTerms(collection, shardId).ensureTermsIsHigher(coreNodeName, Collections.singleton(replicaCoreNodeName));
+            continue;
+          }
+
+          final Replica.State lirState = zkController.getLeaderInitiatedRecoveryState(coll, shardId, replicaCoreNodeName);
+          if (lirState == Replica.State.DOWN || lirState == Replica.State.RECOVERY_FAILED) {
+            log.info("After core={} coreNodeName={} was elected leader, a replica coreNodeName={} was found in state: "
+                + lirState.toString() + " and needing recovery.", coreName, coreNodeName, replicaCoreNodeName);
+            List<ZkCoreNodeProps> replicaProps =
+                zkController.getZkStateReader().getReplicaProps(collection, shardId, coreNodeName);
+
+            if (replicaProps != null && replicaProps.size() > 0) {
+              ZkCoreNodeProps coreNodeProps = null;
+              for (ZkCoreNodeProps p : replicaProps) {
+                if (((Replica)p.getNodeProps()).getName().equals(replicaCoreNodeName)) {
+                  coreNodeProps = p;
+                  break;
+                }
+              }
+
+              zkController.ensureReplicaInLeaderInitiatedRecovery(cc,
+                  collection, shardId, coreNodeProps, core.getCoreDescriptor(),
+                  false /* forcePublishState */);
+            }
+          }
+        }
+      }
+    } // core gets closed automagically
+  }
+
 
   // returns true if all replicas are found to be up, false if not
   private boolean waitForReplicasToComeUp(int timeoutms) throws InterruptedException {

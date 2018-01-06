@@ -45,6 +45,7 @@ import org.apache.solr.client.solrj.response.SimpleSolrResponse;
 import org.apache.solr.cloud.CloudDescriptor;
 import org.apache.solr.cloud.Overseer;
 import org.apache.solr.cloud.ZkController;
+import org.apache.solr.cloud.ZkShardTerms;
 import org.apache.solr.cloud.overseer.OverseerAction;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrException.ErrorCode;
@@ -184,6 +185,8 @@ public class DistributedUpdateProcessor extends UpdateRequestProcessor {
   // are custom and may modify the SolrInputDocument racing with its serialization for replication
   private final boolean cloneRequiredOnLeader;
   private final Replica.Type replicaType;
+  // this flag, used for testing rolling updates, should be removed by SOLR-11812
+  private final boolean isOldLIRMode;
 
   public DistributedUpdateProcessor(SolrQueryRequest req, SolrQueryResponse rsp, UpdateRequestProcessor next) {
     this(req, rsp, new AtomicUpdateDocumentMerger(req), next);
@@ -203,6 +206,7 @@ public class DistributedUpdateProcessor extends UpdateRequestProcessor {
 
     this.ulog = req.getCore().getUpdateHandler().getUpdateLog();
     this.vinfo = ulog == null ? null : ulog.getVersionInfo();
+    this.isOldLIRMode = !"new".equals(req.getCore().getCoreDescriptor().getCoreProperty("lirVersion", "new"));
     versionsStored = this.vinfo != null && this.vinfo.getVersionField() != null;
     returnVersions = req.getParams().getBool(UpdateParams.VERSIONS ,false);
 
@@ -344,11 +348,12 @@ public class DistributedUpdateProcessor extends UpdateRequestProcessor {
         }
 
         List<Node> nodes = new ArrayList<>(replicaProps.size());
+        ZkShardTerms zkShardTerms = zkController.getShardTerms(collection, shardId);
         for (ZkCoreNodeProps props : replicaProps) {
           String coreNodeName = ((Replica) props.getNodeProps()).getName();
           if (skipList != null && skipListSet.contains(props.getCoreUrl())) {
             log.info("check url:" + props.getCoreUrl() + " against:" + skipListSet + " result:true");
-          } else if(!zkController.getShardTerms(collection, shardId).canBecomeLeader(coreNodeName)) {
+          } else if(!isOldLIRMode && zkShardTerms.registered(coreNodeName) && !zkShardTerms.canBecomeLeader(coreNodeName)) {
             log.info("skip url:{} cause its term is less than leader", props.getCoreUrl());
           } else {
             nodes.add(new StdNode(props, collection, shardId));
@@ -847,10 +852,23 @@ public class DistributedUpdateProcessor extends UpdateRequestProcessor {
             // if false, then the node is probably not "live" anymore
             // and we do not need to send a recovery message
             Throwable rootCause = SolrException.getRootCause(error.e);
-            log.error("Setting up to try to start recovery on replica {} with url {}", coreNodeName, replicaUrl, rootCause);
-            ShardInfo shardInfo = new ShardInfo(collection, shardId, leaderCoreNodeName);
-            failedReplicas.putIfAbsent(shardInfo, new HashSet<>());
-            failedReplicas.get(shardInfo).add(coreNodeName);
+            if (!isOldLIRMode && zkController.getShardTerms(collection, shardId).registered(coreNodeName)) {
+              log.error("Setting up to try to start recovery on replica {} with url {} by increasing leader term", coreNodeName, replicaUrl, rootCause);
+              ShardInfo shardInfo = new ShardInfo(collection, shardId, leaderCoreNodeName);
+              failedReplicas.putIfAbsent(shardInfo, new HashSet<>());
+              failedReplicas.get(shardInfo).add(coreNodeName);
+            } else {
+              // The replica did not registered its term, so it must run with old LIR implementation
+              log.error("Setting up to try to start recovery on replica {}", replicaUrl, rootCause);
+              zkController.ensureReplicaInLeaderInitiatedRecovery(
+                  req.getCore().getCoreContainer(),
+                  collection,
+                  shardId,
+                  stdNode.getNodeProps(),
+                  req.getCore().getCoreDescriptor(),
+                  false /* forcePublishState */
+              );
+            }
           } catch (Exception exc) {
             Throwable setLirZnodeFailedCause = SolrException.getRootCause(exc);
             log.error("Leader failed to set replica " +
@@ -869,9 +887,11 @@ public class DistributedUpdateProcessor extends UpdateRequestProcessor {
         }
       }
     }
-    for (Map.Entry<ShardInfo, Set<String>> entry : failedReplicas.entrySet()) {
-      ShardInfo shardInfo = entry.getKey();
-      zkController.getShardTerms(shardInfo.collection, shardInfo.shard).ensureTermsIsHigher(shardInfo.leader, entry.getValue());
+    if (!isOldLIRMode) {
+      for (Map.Entry<ShardInfo, Set<String>> entry : failedReplicas.entrySet()) {
+        ShardInfo shardInfo = entry.getKey();
+        zkController.getShardTerms(shardInfo.collection, shardInfo.shard).ensureTermsIsHigher(shardInfo.leader, entry.getValue());
+      }
     }
     // in either case, we need to attach the achieved and min rf to the response.
     if (leaderReplicationTracker != null || rollupReplicationTracker != null) {

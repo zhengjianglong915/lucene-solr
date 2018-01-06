@@ -81,6 +81,10 @@ public class ZkShardTerms implements AutoCloseable{
     return terms.canBecomeLeader(coreNodeName);
   }
 
+  public boolean registered(String coreNodeName) {
+    return terms.getTerm(coreNodeName) != null;
+  }
+
   public void close() {
     // no watcher will be registered
     numWatcher.addAndGet(1);
