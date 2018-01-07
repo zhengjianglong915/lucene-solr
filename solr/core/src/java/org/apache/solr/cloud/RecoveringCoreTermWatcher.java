@@ -18,6 +18,9 @@
 package org.apache.solr.cloud;
 
 import java.lang.invoke.MethodHandles;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.core.SolrCore;
@@ -27,9 +30,13 @@ import org.slf4j.LoggerFactory;
 public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   private final SolrCore solrCore;
+  // used to prevent the case when term of other replicas get changed, we won't redo recovery
+  // the idea here is with a specific term of a replica, we only do recovery one
+  private final AtomicLong lastTermDoRecovery;
 
   public RecoveringCoreTermWatcher(SolrCore solrCore) {
     this.solrCore = solrCore;
+    this.lastTermDoRecovery = new AtomicLong(-1);
   }
 
   @Override
@@ -39,8 +46,10 @@ public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
     }
     try {
       String coreNodeName = solrCore.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
-      if (!terms.canBecomeLeader(coreNodeName)) {
+      if (terms.canBecomeLeader(coreNodeName)) return true;
+      if (lastTermDoRecovery.get() < terms.getTerm(coreNodeName)) {
         log.info("Start recovery on {} because core's term is less than leader's term", coreNodeName);
+        lastTermDoRecovery.set(terms.getTerm(coreNodeName));
         solrCore.getUpdateHandler().getSolrCoreState().doRecovery(solrCore.getCoreContainer(), solrCore.getCoreDescriptor());
       }
     } catch (NullPointerException e) {
