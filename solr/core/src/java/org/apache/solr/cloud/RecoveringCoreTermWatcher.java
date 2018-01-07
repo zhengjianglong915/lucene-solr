@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   private final SolrCore solrCore;
-  // used to prevent the case when term of other replicas get changed, we won't redo recovery
+  // used to prevent the case when term of other replicas get changed, we redo recovery
   // the idea here is with a specific term of a replica, we only do recovery one
   private final AtomicLong lastTermDoRecovery;
 
