@@ -18,15 +18,15 @@
 package org.apache.solr.cloud;
 
 import java.lang.invoke.MethodHandles;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.core.SolrCore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Start recovery of a core if its term is less than leader's term
+ */
 public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   private final SolrCore solrCore;
@@ -34,7 +34,7 @@ public class RecoveringCoreTermWatcher implements ZkShardTerms.CoreTermWatcher {
   // the idea here is with a specific term of a replica, we only do recovery one
   private final AtomicLong lastTermDoRecovery;
 
-  public RecoveringCoreTermWatcher(SolrCore solrCore) {
+  RecoveringCoreTermWatcher(SolrCore solrCore) {
     this.solrCore = solrCore;
     this.lastTermDoRecovery = new AtomicLong(-1);
   }
