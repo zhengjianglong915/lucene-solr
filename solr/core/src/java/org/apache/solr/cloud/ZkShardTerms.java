@@ -40,6 +40,23 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Class used for interact with a ZK term node. <br/>
+ * Each ZK term node relates to a shard of a collection and have this format (in json) <br/>
+ * <code>
+ * {<br />
+ *   "replicaNodeName1" : 1,<br />
+ *   "replicaNodeName2" : 2,<br />
+ *   ..<br />
+ * }<br />
+ * </code>
+ * The values correspond to replicas are called terms.
+ * Only replicas with highest term value are considered up to date and be able to become leader and serve queries.
+ * <br/>
+ * Terms can only updated in two strict ways: <br/>
+ * - A replica sets its term equals to leader's term <br/>
+ * - The leader increase its term and some other replicas by 1 <br/>
+ */
 public class ZkShardTerms implements AutoCloseable{
 
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
@@ -54,6 +71,7 @@ public class ZkShardTerms implements AutoCloseable{
 
   private Terms terms;
 
+  // Listener of a core for shard's term change events
   interface CoreTermWatcher {
     // return true if the listener wanna to be triggered in the next time
     boolean onTermChanged(Terms terms);
@@ -69,18 +87,33 @@ public class ZkShardTerms implements AutoCloseable{
     ObjectReleaseTracker.track(this);
   }
 
-  public boolean ensureTermsIsHigher(String leader, Set<String> replicasInLowerTerms) {
+  /**
+   * Ensure that leader's term is lower than some replica's terms
+   * @param leader coreNodeName of leader
+   * @param replicasInLowerTerms replicas which should their term should be lower than leader's term
+   * @return
+   */
+  public void ensureTermsIsHigher(String leader, Set<String> replicasInLowerTerms) {
     Terms newTerms;
     while( (newTerms = terms.increaseTerms(leader, replicasInLowerTerms)) != null) {
-      if (forceSaveTerms(newTerms)) return true;
+      if (forceSaveTerms(newTerms)) return;
     }
-    return false;
   }
 
+  /**
+   * Can this replica become leader or is this replica's term equals to leader's term?
+   * @param coreNodeName of the replica
+   * @return true if this replica can become leader, false if otherwise
+   */
   public boolean canBecomeLeader(String coreNodeName) {
     return terms.canBecomeLeader(coreNodeName);
   }
 
+  /**
+   * Did this replica registered its term? This is a sign to check f
+   * @param coreNodeName of the replica
+   * @return true if this replica registered its term, false if otherwise
+   */
   public boolean registered(String coreNodeName) {
     return terms.getTerm(coreNodeName) != null;
   }
@@ -98,6 +131,9 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
+  /**
+   * Add a listener so the next time the shard's term get updated, listeners will be called
+   */
   void addListener(CoreTermWatcher listener) {
     synchronized (listeners) {
       listeners.add(listener);
@@ -126,26 +162,42 @@ public class ZkShardTerms implements AutoCloseable{
     return true;
   }
 
-  void registerTerm(String replica) {
+  /**
+   * Register a repilca's term (term value will be 0).
+   * If a term is already associate with this replica do nothing
+   * @param coreNodeName of the replica
+   */
+  void registerTerm(String coreNodeName) {
     Terms newTerms;
-    while ( (newTerms = terms.registerTerm(replica)) != null) {
+    while ( (newTerms = terms.registerTerm(coreNodeName)) != null) {
       if (forceSaveTerms(newTerms)) break;
     }
   }
 
-  void setEqualsToMax(String replica) {
+  /**
+   * Set a replica's term equals to leader's term
+   * @param coreNodeName of the replica
+   */
+  void setEqualsToMax(String coreNodeName) {
     Terms newTerms;
-    while ( (newTerms = terms.setEqualsToMax(replica)) != null) {
+    while ( (newTerms = terms.setEqualsToMax(coreNodeName)) != null) {
       if (forceSaveTerms(newTerms)) break;
     }
   }
 
+  // package private for testing, only used by tests
   int getNumListeners() {
     synchronized (listeners) {
       return listeners.size();
     }
   }
 
+  /**
+   * Set new terms to ZK.
+   * In case of correspond ZK term node is not created, create it
+   * @param newTerms to be set
+   * @return true if terms is saved successfully to ZK, false if otherwise
+   */
   private boolean forceSaveTerms(Terms newTerms) {
     try {
       return saveTerms(newTerms);
@@ -155,6 +207,12 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
+  /**
+   * Set new terms to ZK, the version of new terms must match the current ZK term node
+   * @param newTerms to be set
+   * @return true if terms is saved successfully to ZK, false if otherwise
+   * @throws KeeperException.NoNodeException correspond ZK term node is not created
+   */
   private boolean saveTerms(Terms newTerms) throws KeeperException.NoNodeException {
     byte[] znodeData = Utils.toJSON(newTerms.values);
     try {
@@ -172,7 +230,9 @@ public class ZkShardTerms implements AutoCloseable{
     return false;
   }
 
-
+  /**
+   * Create correspond ZK term node
+   */
   private void ensureTermNodeExist() {
     String path = "/collections/"+collection+ "/terms";
     try {
@@ -200,6 +260,11 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
+  /**
+   * Fetch the latest terms from ZK.
+   * This method will atomically register a watcher to the correspond ZK term node,
+   * so {@link ZkShardTerms#terms} will stay up to date.
+   */
   private void refreshTerms() {
     try {
       Watcher watcher = null;
@@ -222,6 +287,10 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
+  /**
+   * Atomically update {@link ZkShardTerms#terms} and call listeners
+   * @param newTerms to be set
+   */
   private void setNewTerms(Terms newTerms) {
     boolean isChanged = false;
     synchronized (writingLock) {
@@ -239,8 +308,12 @@ public class ZkShardTerms implements AutoCloseable{
     }
   }
 
+  /**
+   * Hold values of terms, this class is immutable
+   */
   static class Terms {
     private final Map<String, Long> values;
+    // ZK node version
     private final int version;
 
     public Terms () {

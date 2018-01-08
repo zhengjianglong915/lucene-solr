@@ -24,12 +24,15 @@ import org.apache.solr.common.cloud.SolrZkClient;
 import org.apache.solr.common.util.ObjectReleaseTracker;
 import org.apache.solr.core.CoreDescriptor;
 
-public class ZkCollectionTerms implements AutoCloseable {
+/**
+ * Used to manage all ZkShardTerms of a collection
+ */
+class ZkCollectionTerms implements AutoCloseable {
   private String collection;
   private Map<String, ZkShardTerms> terms;
   private SolrZkClient zkClient;
 
-  public ZkCollectionTerms(String collection, SolrZkClient client) {
+  ZkCollectionTerms(String collection, SolrZkClient client) {
     this.collection = collection;
     this.terms = new HashMap<>();
     this.zkClient = client;
