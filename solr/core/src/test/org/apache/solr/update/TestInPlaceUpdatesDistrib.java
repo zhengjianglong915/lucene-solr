@@ -42,7 +42,6 @@ import org.apache.solr.client.solrj.request.schema.SchemaRequest.Field;
 import org.apache.solr.client.solrj.response.UpdateResponse;
 import org.apache.solr.client.solrj.response.schema.SchemaResponse.FieldResponse;
 import org.apache.solr.cloud.AbstractFullDistribZkTestBase;
-import org.apache.solr.cloud.ZkController;
 import org.apache.solr.cloud.ZkShardTerms;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;

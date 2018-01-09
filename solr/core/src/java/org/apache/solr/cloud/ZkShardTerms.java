@@ -41,21 +41,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Class used for interact with a ZK term node. <br/>
- * Each ZK term node relates to a shard of a collection and have this format (in json) <br/>
+ * Class used for interact with a ZK term node.
+ * Each ZK term node relates to a shard of a collection and have this format (in json)
+ * <p>
  * <code>
- * {<br />
- *   "replicaNodeName1" : 1,<br />
- *   "replicaNodeName2" : 2,<br />
- *   ..<br />
- * }<br />
+ * {
+ *   "replicaNodeName1" : 1,
+ *   "replicaNodeName2" : 2,
+ *   ..
+ * }
  * </code>
+ * <p>
  * The values correspond to replicas are called terms.
  * Only replicas with highest term value are considered up to date and be able to become leader and serve queries.
- * <br/>
- * Terms can only updated in two strict ways: <br/>
- * - A replica sets its term equals to leader's term <br/>
- * - The leader increase its term and some other replicas by 1 <br/>
+ * <p>
+ * Terms can only updated in two strict ways:
+ * <ul>
+ * <li>A replica sets its term equals to leader's term
+ * <li>The leader increase its term and some other replicas by 1
+ * </ul>
  */
 public class ZkShardTerms implements AutoCloseable{
 

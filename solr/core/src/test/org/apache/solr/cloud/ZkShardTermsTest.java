@@ -130,7 +130,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     }
 
     List<String> failedReplicas = new ArrayList<>(replicas);
-    Collections.shuffle(failedReplicas);
+    Collections.shuffle(failedReplicas, random());
     while (failedReplicas.size() > 2) {
       failedReplicas.remove(0);
     }
