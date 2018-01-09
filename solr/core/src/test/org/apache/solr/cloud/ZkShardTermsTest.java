@@ -23,18 +23,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.request.CollectionAdminRequest;
+import org.apache.solr.common.cloud.DefaultConnectionStrategy;
+import org.apache.solr.common.cloud.OnReconnect;
+import org.apache.solr.common.cloud.SolrZkClient;
 import org.apache.solr.common.util.TimeSource;
 import org.apache.solr.util.TimeOut;
+import org.apache.zookeeper.KeeperException;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -184,6 +191,54 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
     replicaTerms.close();
   }
 
+  public void testCoreTermWatcherOnLosingZKConnection() throws InterruptedException, IOException, KeeperException, TimeoutException {
+    String collection = "testCoreTermWatcherOnLosingZKConnection";
+
+    String zkDir = createTempDir("zkData").toFile().getAbsolutePath();
+    ZkTestServer server = new ZkTestServer(zkDir);
+    try {
+      server.run();
+      try (SolrZkClient zkClient = new SolrZkClient(server.getZkAddress(), 1500)) {
+        zkClient.makePath("/", true);
+        zkClient.makePath("/collections", true);
+      }
+
+      try (SolrZkClient leaderZkClient = new SolrZkClient(server.getZkAddress(), 1500);
+           ZkShardTerms leaderTerms = new ZkShardTerms(collection, "shard1", leaderZkClient)) {
+        leaderTerms.registerTerm("leader");
+        AtomicInteger count = new AtomicInteger(0);
+        Set<ZkShardTerms> shardTerms = new HashSet<>();
+        OnReconnect onReconnect = () -> {
+          log.info("On reconnect {}", shardTerms);
+          shardTerms.iterator().next().refreshTerms(true);
+        };
+        try (SolrZkClient replicaZkClient = new SolrZkClient(server.getZkAddress(), 1500, 1500, new DefaultConnectionStrategy(), onReconnect);
+             ZkShardTerms replicaTerms = new ZkShardTerms(collection, "shard1", replicaZkClient)) {
+          shardTerms.add(replicaTerms);
+          replicaTerms.addListener(terms -> {
+            count.incrementAndGet();
+            return true;
+          });
+          replicaTerms.registerTerm("replica");
+          waitFor(1, count::get);
+          server.expire(replicaZkClient.getSolrZooKeeper().getSessionId());
+          leaderTerms.ensureTermsIsHigher("leader", Collections.singleton("replica"));
+          replicaZkClient.getConnectionManager().waitForDisconnected(10000);
+          replicaZkClient.getConnectionManager().waitForConnected(10000);
+          waitFor(2, count::get);
+          waitFor(1, replicaTerms::getNumWatcher);
+          replicaTerms.setEqualsToMax("replica");
+          waitFor(3, count::get);
+          waitFor(1L, () -> leaderTerms.getTerms().get("replica"));
+          leaderTerms.ensureTermsIsHigher("leader", Collections.singleton("replica"));
+          waitFor(4, count::get);
+        }
+      }
+    } finally {
+      server.shutdown();
+    }
+  }
+
   public void testEnsureTermsIsHigher() {
     Map<String, Long> map = new HashMap<>();
     map.put("leader", 0L);
@@ -193,7 +248,7 @@ public class ZkShardTermsTest extends SolrCloudTestCase {
   }
 
   private <T> void waitFor(T expected, Supplier<T> supplier) throws InterruptedException {
-    TimeOut timeOut = new TimeOut(2, TimeUnit.SECONDS, new TimeSource.CurrentTimeSource());
+    TimeOut timeOut = new TimeOut(10, TimeUnit.SECONDS, new TimeSource.CurrentTimeSource());
     while (!timeOut.hasTimedOut()) {
       if (expected == supplier.get()) return;
       Thread.sleep(100);

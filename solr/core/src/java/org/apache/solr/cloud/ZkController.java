@@ -1036,8 +1036,11 @@ public class ZkController {
       final String coreZkNodeName = desc.getCloudDescriptor().getCoreNodeName();
       assert coreZkNodeName != null : "we should have a coreNodeName by now";
 
+      ZkShardTerms shardTerms = getShardTerms(collection, cloudDesc.getShardId());
       if ("new".equals(desc.getCoreProperty("lirVersion", "new"))) {
-        getShardTerms(collection, cloudDesc.getShardId()).registerTerm(coreZkNodeName);
+        // this call is useful in case of reconnecting to ZK
+        shardTerms.refreshTerms(true);
+        shardTerms.registerTerm(coreZkNodeName);
       }
       String shardId = cloudDesc.getShardId();
       Map<String,Object> props = new HashMap<>();
@@ -1131,7 +1134,7 @@ public class ZkController {
         }
 
         if ("new".equals(desc.getCoreProperty("lirVersion", "new"))) {
-          getShardTerms(collection, shardId).addListener(new RecoveringCoreTermWatcher(core));
+          shardTerms.addListener(new RecoveringCoreTermWatcher(core));
         }
         core.getCoreDescriptor().getCloudDescriptor().setHasRegistered(true);
       }
@@ -1464,7 +1467,7 @@ public class ZkController {
     return getCollectionTerms(collection).getShard(shardId);
   }
 
-  public ZkCollectionTerms getCollectionTerms(String collection) {
+  private ZkCollectionTerms getCollectionTerms(String collection) {
     synchronized (collectionToTerms) {
       if (!collectionToTerms.containsKey(collection)) collectionToTerms.put(collection, new ZkCollectionTerms(collection, zkClient));
       return collectionToTerms.get(collection);

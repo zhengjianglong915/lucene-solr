@@ -83,7 +83,7 @@ public class ZkShardTerms implements AutoCloseable{
     this.shard = shard;
     this.zkClient = zkClient;
     ensureTermNodeExist();
-    refreshTerms();
+    refreshTerms(false);
     ObjectReleaseTracker.track(this);
   }
 
@@ -91,7 +91,6 @@ public class ZkShardTerms implements AutoCloseable{
    * Ensure that leader's term is lower than some replica's terms
    * @param leader coreNodeName of leader
    * @param replicasInLowerTerms replicas which should their term should be lower than leader's term
-   * @return
    */
   public void ensureTermsIsHigher(String leader, Set<String> replicasInLowerTerms) {
     Terms newTerms;
@@ -120,7 +119,7 @@ public class ZkShardTerms implements AutoCloseable{
 
   public void close() {
     // no watcher will be registered
-    numWatcher.addAndGet(1);
+    numWatcher.set(2);
     ObjectReleaseTracker.release(this);
   }
 
@@ -163,7 +162,7 @@ public class ZkShardTerms implements AutoCloseable{
   }
 
   /**
-   * Register a repilca's term (term value will be 0).
+   * Register a replica's term (term value will be 0).
    * If a term is already associate with this replica do nothing
    * @param coreNodeName of the replica
    */
@@ -190,6 +189,11 @@ public class ZkShardTerms implements AutoCloseable{
     synchronized (listeners) {
       return listeners.size();
     }
+  }
+
+  // package private for testing, only used by tests
+  int getNumWatcher() {
+    return numWatcher.get();
   }
 
   /**
@@ -221,7 +225,7 @@ public class ZkShardTerms implements AutoCloseable{
       return true;
     } catch (KeeperException.BadVersionException e) {
       log.info("Failed to save terms, version is not match, retrying");
-      refreshTerms();
+      refreshTerms(false);
     } catch (KeeperException.NoNodeException e) {
       throw e;
     } catch (Exception e) {
@@ -264,27 +268,36 @@ public class ZkShardTerms implements AutoCloseable{
    * Fetch the latest terms from ZK.
    * This method will atomically register a watcher to the correspond ZK term node,
    * so {@link ZkShardTerms#terms} will stay up to date.
+   * @param earlyStop early stop if the ZK node is already watched
    */
-  private void refreshTerms() {
-    try {
+  public void refreshTerms(boolean earlyStop) {
+    Terms newTerms;
+    synchronized (numWatcher) {
+      // This block is synchronized because we want only one and at least one valid watcher is watching the term node.
       Watcher watcher = null;
-      if (numWatcher.compareAndSet(0, 1)) {
-        watcher = event -> {
-          numWatcher.decrementAndGet();
-          refreshTerms();
-        };
-      }
+      try {
+        if (numWatcher.compareAndSet(0, 1)) {
+          watcher = event -> {
+            numWatcher.compareAndSet(1, 0);
+            refreshTerms(false);
+          };
+        }
 
-      Stat stat = new Stat();
-      byte[] data = zkClient.getData(znodePath, watcher, stat, true);
-      Terms newTerms = new Terms((Map<String, Long>) Utils.fromJSON(data), stat.getVersion());
-      setNewTerms(newTerms);
-    } catch (InterruptedException e) {
-      Thread.interrupted();
-      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
-    } catch (KeeperException e) {
-      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
+        if (earlyStop && watcher == null) return;
+
+        Stat stat = new Stat();
+        byte[] data = zkClient.getData(znodePath, watcher, stat, true);
+        newTerms = new Terms((Map<String, Long>) Utils.fromJSON(data), stat.getVersion());
+      } catch (InterruptedException e) {
+        Thread.interrupted();
+        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
+      } catch (KeeperException e) {
+        // if an keeper exception is thrown, the watcher will never be called
+        if (watcher != null) numWatcher.compareAndSet(1, 0);
+        throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, "Error updating shard term for collection:" + collection, e);
+      }
     }
+    setNewTerms(newTerms);
   }
 
   /**
