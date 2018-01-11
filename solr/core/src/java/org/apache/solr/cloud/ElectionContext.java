@@ -303,7 +303,6 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
  InterruptedException, IOException {
     String coreName = leaderProps.getStr(ZkStateReader.CORE_NAME_PROP);
     ActionThrottle lt;
-    String coreNodeName;
     try (SolrCore core = cc.getCore(coreName)) {
       if (core == null ) {
         if (cc.isShutDown()) {
@@ -312,7 +311,6 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
           throw new SolrException(ErrorCode.SERVER_ERROR, "SolrCore not found:" + coreName + " in " + cc.getLoadedCoreNames());
         }
       }
-      coreNodeName = core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
       MDCLoggingContext.setCore(core);
       lt = core.getUpdateHandler().getSolrCoreState().getLeaderThrottle();
     }
