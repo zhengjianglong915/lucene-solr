@@ -105,14 +105,8 @@ public class IBSimilarity extends SimilarityBase {
   }
 
   @Override
-  protected double maxScore(BasicStats stats, double maxFreq) {
-    // TODO: can we compute a better upper bound on the produced scores
-    return Double.POSITIVE_INFINITY;
-  }
-
-  @Override
   protected void explain(
-      List<Explanation> subs, BasicStats stats, int doc, double freq, double docLen) {
+      List<Explanation> subs, BasicStats stats, double freq, double docLen) {
     if (stats.getBoost() != 1.0d) {
       subs.add(Explanation.match((float)stats.getBoost(), "boost, query boost"));
     }
@@ -120,18 +114,18 @@ public class IBSimilarity extends SimilarityBase {
     Explanation lambdaExpl = lambda.explain(stats);
     subs.add(normExpl);
     subs.add(lambdaExpl);
-    subs.add(distribution.explain(stats, normExpl.getValue(), lambdaExpl.getValue()));
+    subs.add(distribution.explain(stats, normExpl.getValue().floatValue(), lambdaExpl.getValue().floatValue()));
   }
 
   @Override
   protected Explanation explain(
-      BasicStats stats, int doc, Explanation freq, double docLen) {
+      BasicStats stats, Explanation freq, double docLen) {
     List<Explanation> subs = new ArrayList<>();
-    explain(subs, stats, doc, freq.getValue(), docLen);
+    explain(subs, stats, freq.getValue().doubleValue(), docLen);
 
     return Explanation.match(
-        (float) score(stats, freq.getValue(), docLen),
-        "score(" + getClass().getSimpleName() + ", doc=" + doc + ", freq=" +
+        (float) score(stats, freq.getValue().doubleValue(), docLen),
+        "score(" + getClass().getSimpleName() + ", freq=" +
             freq.getValue() +"), computed as boost * " +
             "distribution.score(stats, normalization.tfn(stats, freq," +
             " docLen), lambda.lambda(stats)) from:",

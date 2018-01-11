@@ -14,10 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
-/** 
- * TODO
- */
-package org.apache.solr.util.configuration.providers;
+package org.apache.solr.client.solrj.io.eval;
+
+import java.util.Map;
 
 
+public interface Attributes {
+  Object getAttribute(String key);
+  void setAttribute(String key, Object value);
+  Map getAttributes();
+}

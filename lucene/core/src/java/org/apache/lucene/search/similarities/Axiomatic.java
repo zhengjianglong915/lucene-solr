@@ -113,25 +113,20 @@ public abstract class Axiomatic extends SimilarityBase {
   }
 
   @Override
-  protected double maxScore(BasicStats stats, double maxFreq) {
-    // TODO: can we compute a better upper bound on the produced scores
-    return Double.POSITIVE_INFINITY;
-  }
-
-  @Override
   protected Explanation explain(
-      BasicStats stats, int doc, Explanation freq, double docLen) {    
+      BasicStats stats, Explanation freq, double docLen) {    
     List<Explanation> subs = new ArrayList<>();
-    explain(subs, stats, doc, freq.getValue(), docLen);
+    double f = freq.getValue().doubleValue();
+    explain(subs, stats, f, docLen);
     
-    double score = tf(stats, freq.getValue(), docLen)
-        * ln(stats, freq.getValue(), docLen)
-        * tfln(stats, freq.getValue(), docLen)
-        * idf(stats, freq.getValue(), docLen)
-        - gamma(stats, freq.getValue(), docLen);
+    double score = tf(stats, f, docLen)
+        * ln(stats, f, docLen)
+        * tfln(stats, f, docLen)
+        * idf(stats, f, docLen)
+        - gamma(stats, f, docLen);
 
     Explanation explanation = Explanation.match((float) score,
-        "score(" + getClass().getSimpleName() + ", doc=" + doc + ", freq=" + freq.getValue() +"), computed from:",
+        "score(" + getClass().getSimpleName() + ", freq=" + freq.getValue() +"), computed from:",
         subs);
     if (stats.boost != 1f) {
       explanation = Explanation.match((float) (score * stats.boost), "Boosted score, computed as (score * boost) from:",
@@ -147,7 +142,7 @@ public abstract class Axiomatic extends SimilarityBase {
   }
 
   @Override
-  protected void explain(List<Explanation> subs, BasicStats stats, int doc,
+  protected void explain(List<Explanation> subs, BasicStats stats,
                          double freq, double docLen) {
     if (stats.getBoost() != 1.0d) {
       subs.add(Explanation.match((float) stats.getBoost(),
@@ -164,7 +159,7 @@ public abstract class Axiomatic extends SimilarityBase {
     subs.add(tflnExplain(stats, freq, docLen));
     subs.add(idfExplain(stats, freq, docLen));
     subs.add(Explanation.match((float) gamma(stats, freq, docLen), "gamma"));
-    super.explain(subs, stats, doc, freq, docLen);
+    super.explain(subs, stats, freq, docLen);
   }
 
   /**

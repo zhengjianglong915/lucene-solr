@@ -49,6 +49,19 @@ Apache UIMA 2.3.1
 Apache ZooKeeper 3.4.10
 Jetty 9.3.20.v20170531
 
+Upgrade Notes
+----------------------
+
+* SOLR-11748: The throttling mechanism used to limit the rate of autoscaling events processed
+  has been removed. This deprecates the 'actionThrottlePeriodSeconds' setting in the set-properties
+  Autoscaling API which is now a no-op. Use the 'triggerCooldownPeriodSeconds' instead to pause event
+  processing.
+
+* SOLR-11798: The top-level <highlighting> syntax in solrconfig.xml is now formally
+  deprecated in favour of <searchComponent> equivalent syntax. See also SOLR-1696.
+
+* SOLR-11809: QueryComponent's rq parameter parsing no longer considers the defType parameter.
+
 New Features
 ----------------------
 * SOLR-11285: Simulation framework for autoscaling. (ab)
@@ -63,6 +76,12 @@ New Features
 * SOLR-11201: Implement autoscaling trigger for arbitrary metrics that creates events when
   a given metric breaches a threshold (shalin)
 
+* SOLR-11653: TimeRoutedAlias URP now auto-creates new collections on the fly according to alias metadata
+  rules that sets the time interval for each collection.  An internal Overseer command "ROUTEDALIAS_CREATECOLL"
+  was created to facilitate this.  (David Smiley)
+
+* SOLR-11062: new tag "diskType" in autoscaling policy (noble)
+
 Bug Fixes
 ----------------------
 
@@ -70,6 +89,13 @@ Bug Fixes
 
 * SOLR-11555: If the query terms reduce to nothing, filter(clause) produces an NPE whereas
   fq=clause does not (Erick Erickson)
+
+* SOLR-11824: Fixed bucket ordering in distributed json.facet type:range when mincount>0 (hossman)
+
+* SOLR-11821: ConcurrentModificationException in SimSolrCloudTestCase.tearDown (shalin)
+
+* SOLR-11631: The Schema API should return non-zero status when there are failures.
+  (Noble Paul, Steve Rowe)
 
 Optimizations
 ----------------------
@@ -94,6 +120,33 @@ Other Changes
 * SOLR-11793: Reduce code duplication w.r.t. RestTestHarness(es). (Christine Poerschke)
 
 * SOLR-7733: remove "optimize" from the UI. (Erick Erickson)
+
+* SOLR-11748: Remove Autoscaling action throttle. (shalin)
+
+* SOLR-11805: SolrJ's SolrResponse.getElaspedTime was sometimes a millisecond off. (David Smiley)
+
+* SOLR-11798: Formally deprecate top-level <highlighting> syntax in solrconfig.xml
+  in favour of <searchComponent> equivalent syntax. (Christine Poerschke)
+
+* SOLR-11801: Support customisation of the "highlighting" query response element.
+  (Ramsey Haddad, Pranav Murugappan, David Smiley, Christine Poerschke)
+
+* SOLR-11692: SolrDispatchFilter's use of a "close shield" in tests should not be applied to
+  further servlet chain processing.  (Jeff Miller, David Smiley)
+
+* SOLR-11218: Fail and return an error when attempting to delete a collection that's part of an alias (Erick Erickson)
+
+==================  7.2.1 ==================
+
+Bug Fixes
+----------------------
+
+* SOLR-11771: Overseer can never process some last messages (Cao Manh Dat)
+
+* SOLR-11809: QueryComponent.prepare rq parsing could fail under SOLR 7.2.0 - fix:
+  QueryComponent's rq parameter parsing no longer considers the defType parameter.
+  (Christine Poerschke and David Smiley in response to bug report/analysis
+  from Dariusz Wojtas and Diego Ceccarelli)
 
 ==================  7.2.0 ==================
 
