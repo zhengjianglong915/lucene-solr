@@ -181,11 +181,16 @@ public class ZkShardTerms implements AutoCloseable{
    * Set a replica's term equals to leader's term
    * @param coreNodeName of the replica
    */
-  void setEqualsToMax(String coreNodeName) {
+  public void setEqualsToMax(String coreNodeName) {
     Terms newTerms;
     while ( (newTerms = terms.setEqualsToMax(coreNodeName)) != null) {
       if (forceSaveTerms(newTerms)) break;
     }
+  }
+
+  public long getTerm(String coreNodeName) {
+    Long term = terms.getTerm(coreNodeName);
+    return term == null? -1 : term;
   }
 
   // package private for testing, only used by tests

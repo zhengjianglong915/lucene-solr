@@ -313,14 +313,6 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
         }
       }
       coreNodeName = core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
-      if (zkController.getShardTerms(collection, shardId).registered(coreNodeName)
-          && !zkController.getShardTerms(collection, shardId).canBecomeLeader(coreNodeName)) {
-        // no need to do recovery here, we already has term less than leader term, the recovery will be triggered later
-        log.info("Can not become leader, this core has term less than leader's term");
-        cancelElection();
-        leaderElector.joinElection(this, true);
-        return;
-      }
       MDCLoggingContext.setCore(core);
       lt = core.getUpdateHandler().getSolrCoreState().getLeaderThrottle();
     }
@@ -765,7 +757,14 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
       // to make sure others participate in sync and leader election, we can be leader
       return true;
     }
-    
+
+    String coreNodeName = core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName();
+    if (zkController.getShardTerms(collection, shardId).registered(coreNodeName)
+        && !zkController.getShardTerms(collection, shardId).canBecomeLeader(coreNodeName)) {
+      log.info("Can't become leader, term of replica {} less than leader", coreNodeName);
+      return false;
+    }
+
     if (core.getCoreDescriptor().getCloudDescriptor().getLastPublished() == Replica.State.ACTIVE) {
       log.debug("My last published State was Active, it's okay to be the leader.");
       return true;
