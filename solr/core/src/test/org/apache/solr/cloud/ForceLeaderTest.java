@@ -185,14 +185,13 @@ public class ForceLeaderTest extends HttpPartitionTest {
     log.info("Sleep and periodically wake up to check for state...");
     for (int i = 0; i < 20; i++) {
       ClusterState clusterState = zkController.getZkStateReader().getClusterState();
-      boolean allRecoveries = true;
-      for (Replica notLeader : notLeaders) {
-        if (clusterState.getCollection(collectionName).getReplica(notLeader.getName()).getState() != State.RECOVERING) {
-          allRecoveries = false;
-          break;
+      boolean allDown = true;
+      for (Replica replica : clusterState.getCollection(collectionName).getSlice(shard).getReplicas()) {
+        if (replica.getState() != State.DOWN) {
+          allDown = false;
         }
       }
-      if (allRecoveries && clusterState.getCollection(collectionName).getSlice(shard).getLeader() == null) {
+      if (allDown && clusterState.getCollection(collectionName).getSlice(shard).getLeader() == null) {
         break;
       }
       Thread.sleep(1000);
