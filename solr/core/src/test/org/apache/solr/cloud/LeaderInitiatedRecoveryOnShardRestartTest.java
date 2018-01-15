@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 @Slow
 @Nightly
 @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/SOLR-10071")
-//TODO remove this test on SOLR-11812
+@Deprecated
 public class LeaderInitiatedRecoveryOnShardRestartTest extends AbstractFullDistribZkTestBase {
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   

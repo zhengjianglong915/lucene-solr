@@ -443,7 +443,6 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
       boolean isLeader = true;
       if (!isClosed) {
         try {
-          //TODO remove this on 8.0, SOLR-11812
           // we must check LIR before registering as leader
           checkLIR(coreName, allReplicasInLine);
           if (replicaType == Replica.Type.TLOG) {
@@ -532,7 +531,7 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
     return docCollection.getReplica(replicaName);
   }
 
-  //TODO remove this method on 8.0, SOLR-11812
+  @Deprecated
   public void checkLIR(String coreName, boolean allReplicasInLine)
       throws InterruptedException, KeeperException, IOException {
     if (allReplicasInLine) {
@@ -571,7 +570,7 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
     }
   }
 
-  //TODO remove this method on 8.0, SOLR-11812
+  @Deprecated
   private void startLeaderInitiatedRecoveryOnReplicas(String coreName) throws Exception {
     try (SolrCore core = cc.getCore(coreName)) {
       CloudDescriptor cloudDesc = core.getCoreDescriptor().getCloudDescriptor();
@@ -600,7 +599,7 @@ final class ShardLeaderElectionContext extends ShardLeaderElectionContextBase {
             continue; // added safe-guard so we don't mark this core as down
 
           if (zkController.getShardTerms(collection, shardId).registered(replicaCoreNodeName)) {
-            // this replica is registered its term so it is running with the new LIR implementation
+            // the replica registered its term so it is running with the new LIR implementation
             // we can put this replica into recovery by increase our terms
             zkController.getShardTerms(collection, shardId).ensureTermsIsHigher(coreNodeName, Collections.singleton(replicaCoreNodeName));
             continue;

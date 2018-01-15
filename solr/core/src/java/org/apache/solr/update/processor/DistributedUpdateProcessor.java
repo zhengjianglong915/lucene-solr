@@ -185,6 +185,8 @@ public class DistributedUpdateProcessor extends UpdateRequestProcessor {
   // are custom and may modify the SolrInputDocument racing with its serialization for replication
   private final boolean cloneRequiredOnLeader;
   private final Replica.Type replicaType;
+
+  @Deprecated
   // this flag, used for testing rolling updates, should be removed by SOLR-11812
   private final boolean isOldLIRMode;
 

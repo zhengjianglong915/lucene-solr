@@ -987,7 +987,6 @@ public class CollectionsHandler extends RequestHandlerBase implements Permission
             "The shard already has an active leader. Force leader is not applicable. State: " + slice);
       }
 
-      //TODO remove this in 8.0, SOLR-11812
       // Clear out any LIR state
       String lirPath = handler.coreContainer.getZkController().getLeaderInitiatedRecoveryZnodePath(collectionName, sliceId);
       if (handler.coreContainer.getZkController().getZkClient().exists(lirPath, true)) {

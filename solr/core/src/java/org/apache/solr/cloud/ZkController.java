@@ -226,7 +226,7 @@ public class ZkController {
 
   private volatile boolean isClosed;
 
-  //TODO remove in 8.0, SOLR-11812
+  @Deprecated
   // keeps track of replicas that have been asked to recover by leaders running on this node
   private final Map<String, String> replicasInLeaderInitiatedRecovery = new HashMap<String, String>();
 
@@ -1037,7 +1037,10 @@ public class ZkController {
       assert coreZkNodeName != null : "we should have a coreNodeName by now";
 
       ZkShardTerms shardTerms = getShardTerms(collection, cloudDesc.getShardId());
-      if ("new".equals(desc.getCoreProperty("lirVersion", "new"))) {
+
+      // This flag is used for testing rolling updates and should be removed in SOLR-11812
+      boolean isRunningInNewLIR = "new".equals(desc.getCoreProperty("lirVersion", "new"));
+      if (isRunningInNewLIR) {
         // this call is useful in case of reconnecting to ZK
         shardTerms.refreshTerms(true);
         shardTerms.registerTerm(coreZkNodeName);
@@ -1133,7 +1136,7 @@ public class ZkController {
           publish(desc, Replica.State.ACTIVE);
         }
 
-        if ("new".equals(desc.getCoreProperty("lirVersion", "new"))) {
+        if (isRunningInNewLIR) {
           shardTerms.addListener(new RecoveringCoreTermWatcher(core));
         }
         core.getCoreDescriptor().getCloudDescriptor().setHasRegistered(true);
@@ -1323,7 +1326,6 @@ public class ZkController {
         return true;
       }
 
-      //TODO remove in 8.0, SOLR-11812
       // see if the leader told us to recover
       final Replica.State lirState = getLeaderInitiatedRecoveryState(collection, shardId,
           core.getCoreDescriptor().getCloudDescriptor().getCoreNodeName());
@@ -1390,7 +1392,6 @@ public class ZkController {
       
       String coreNodeName = cd.getCloudDescriptor().getCoreNodeName();
 
-      //TODO remove in 8.0, SOLR-11812
       // If the leader initiated recovery, then verify that this replica has performed
       // recovery as requested before becoming active; don't even look at lirState if going down
       if (state != Replica.State.DOWN) {
@@ -1449,7 +1450,9 @@ public class ZkController {
         log.info("The core '{}' had failed to initialize before.", cd.getName());
       }
 
-      if (state == Replica.State.RECOVERING && "new".equals(cd.getCoreProperty("lirVersion", "new"))) {
+      // This flag is used for testing rolling updates and should be removed in SOLR-11812
+      boolean isRunningInNewLIR = "new".equals(cd.getCoreProperty("lirVersion", "new"));
+      if (state == Replica.State.RECOVERING && isRunningInNewLIR) {
         getShardTerms(collection, shardId).setEqualsToMax(coreNodeName);
       }
       ZkNodeProps m = new ZkNodeProps(props);
@@ -1755,7 +1758,6 @@ public class ZkController {
 
       // detect if this core is in leader-initiated recovery and if so,
       // then we don't need the leader to wait on seeing the down state
-      // TODO remove getting LIR state in 8.0, SOLR-11812
       Replica.State lirState = null;
       try {
         lirState = getLeaderInitiatedRecoveryState(collection, shard, myCoreNodeName);
@@ -2068,7 +2070,6 @@ public class ZkController {
     return cc;
   }
 
-  //TODO remove all old LIR implementation in 8.0, SOLR-11812
   /**
    * When a leader receives a communication error when trying to send a request to a replica,
    * it calls this method to ensure the replica enters recovery when connectivity is restored.
@@ -2077,6 +2078,7 @@ public class ZkController {
    * false means the node is not live either, so no point in trying to send recovery commands
    * to it.
    */
+  @Deprecated
   public boolean ensureReplicaInLeaderInitiatedRecovery(
       final CoreContainer container,
       final String collection, final String shardId, final ZkCoreNodeProps replicaCoreProps,
@@ -2146,6 +2148,7 @@ public class ZkController {
     return nodeIsLive;
   }
 
+  @Deprecated
   public boolean isReplicaInRecoveryHandling(String replicaUrl) {
     boolean exists = false;
     synchronized (replicasInLeaderInitiatedRecovery) {
@@ -2154,12 +2157,14 @@ public class ZkController {
     return exists;
   }
 
+  @Deprecated
   public void removeReplicaFromLeaderInitiatedRecoveryHandling(String replicaUrl) {
     synchronized (replicasInLeaderInitiatedRecovery) {
       replicasInLeaderInitiatedRecovery.remove(replicaUrl);
     }
   }
 
+  @Deprecated
   public Replica.State getLeaderInitiatedRecoveryState(String collection, String shardId, String coreNodeName) {
     final Map<String, Object> stateObj = getLeaderInitiatedRecoveryStateObject(collection, shardId, coreNodeName);
     if (stateObj == null) {
@@ -2169,6 +2174,7 @@ public class ZkController {
     return stateStr == null ? null : Replica.State.getState(stateStr);
   }
 
+  @Deprecated
   public Map<String, Object> getLeaderInitiatedRecoveryStateObject(String collection, String shardId, String coreNodeName) {
 
     if (collection == null || shardId == null || coreNodeName == null)
@@ -2213,6 +2219,7 @@ public class ZkController {
     return stateObj;
   }
 
+  @Deprecated
   public void updateLeaderInitiatedRecoveryState(String collection, String shardId, String coreNodeName,
       Replica.State state, CoreDescriptor leaderCd, boolean retryOnConnLoss) {
     if (collection == null || shardId == null || coreNodeName == null) {
@@ -2338,10 +2345,12 @@ public class ZkController {
     }
   }
 
+  @Deprecated
   public static String getLeaderInitiatedRecoveryZnodePath(String collection, String shardId) {
     return "/collections/" + collection + "/leader_initiated_recovery/" + shardId;
   }
 
+  @Deprecated
   public static String getLeaderInitiatedRecoveryZnodePath(String collection, String shardId, String coreNodeName) {
     return getLeaderInitiatedRecoveryZnodePath(collection, shardId) + "/" + coreNodeName;
   }

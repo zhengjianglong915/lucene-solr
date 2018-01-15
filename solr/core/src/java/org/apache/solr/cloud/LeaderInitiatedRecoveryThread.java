@@ -45,7 +45,7 @@ import java.util.List;
  * replica; used by a shard leader to nag a replica into recovering after the
  * leader experiences an error trying to send an update request to the replica.
  */
-//TODO remove this class on 8.0, SOLR-11812
+@Deprecated
 public class LeaderInitiatedRecoveryThread extends Thread {
 
   private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());

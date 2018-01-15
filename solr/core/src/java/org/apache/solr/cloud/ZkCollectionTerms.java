@@ -28,9 +28,9 @@ import org.apache.solr.core.CoreDescriptor;
  * Used to manage all ZkShardTerms of a collection
  */
 class ZkCollectionTerms implements AutoCloseable {
-  private String collection;
-  private Map<String, ZkShardTerms> terms;
-  private SolrZkClient zkClient;
+  private final String collection;
+  private final Map<String, ZkShardTerms> terms;
+  private final SolrZkClient zkClient;
 
   ZkCollectionTerms(String collection, SolrZkClient client) {
     this.collection = collection;
@@ -40,19 +40,25 @@ class ZkCollectionTerms implements AutoCloseable {
   }
 
 
-  public synchronized ZkShardTerms getShard(String shardId) {
-    if (!terms.containsKey(shardId)) terms.put(shardId, new ZkShardTerms(collection, shardId, zkClient));
-    return terms.get(shardId);
+  public ZkShardTerms getShard(String shardId) {
+    synchronized (terms) {
+      if (!terms.containsKey(shardId)) terms.put(shardId, new ZkShardTerms(collection, shardId, zkClient));
+      return terms.get(shardId);
+    }
   }
 
-  public synchronized void remove(String shardId, CoreDescriptor coreDescriptor) {
-    if (getShard(shardId).removeTerm(coreDescriptor)) {
-      terms.remove(shardId).close();
+  public void remove(String shardId, CoreDescriptor coreDescriptor) {
+    synchronized (terms) {
+      if (getShard(shardId).removeTerm(coreDescriptor)) {
+        terms.remove(shardId).close();
+      }
     }
   }
 
   public void close() {
-    terms.values().forEach(ZkShardTerms::close);
+    synchronized (terms) {
+      terms.values().forEach(ZkShardTerms::close);
+    }
     ObjectReleaseTracker.release(this);
   }
 
