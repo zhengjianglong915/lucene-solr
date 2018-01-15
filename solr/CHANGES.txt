@@ -82,6 +82,11 @@ New Features
 
 * SOLR-11062: new tag "diskType" in autoscaling policy (noble)
 
+* SOLR-11063: Suggesters should accept required freedisk as a hint (noble)
+
+* SOLR-3218: Added range faceting support for CurrencyFieldType.  This includes both "facet.range" as well
+  as json.facet's "type:range" (Andrew Morrison, Jan Høydahl, Vitaliy Zhovtyuk, hossman)
+
 Bug Fixes
 ----------------------
 
@@ -96,6 +101,8 @@ Bug Fixes
 
 * SOLR-11631: The Schema API should return non-zero status when there are failures.
   (Noble Paul, Steve Rowe)
+
+* SOLR-11839: Fix test failures resulting from SOLR-11218 (Erick Erickson)
 
 Optimizations
 ----------------------
