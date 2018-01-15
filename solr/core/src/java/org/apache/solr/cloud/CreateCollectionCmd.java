@@ -398,6 +398,7 @@ public class CreateCollectionCmd implements Cmd {
   public static void createCollectionZkNode(DistribStateManager stateManager, String collection, Map<String,String> params) {
     log.debug("Check for collection zkNode:" + collection);
     String collectionPath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection;
+    // clean up old terms node
     String termsPath = ZkStateReader.COLLECTIONS_ZKNODE + "/" + collection + "/terms";
     try {
       if (stateManager.hasData(termsPath)) {

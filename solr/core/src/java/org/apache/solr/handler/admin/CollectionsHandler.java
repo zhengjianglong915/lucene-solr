@@ -1008,7 +1008,7 @@ public class CollectionsHandler extends RequestHandlerBase implements Permission
             .filter(rep -> zkShardTerms.registered(rep.getName()))
             .mapToLong(rep -> zkShardTerms.getTerm(rep.getName()))
             .max();
-        // and increase terms of replicas less out-of-sync
+        // increase terms of replicas less out-of-sync
         if (optionalMaxTerm.isPresent()) {
           liveReplicas.stream()
               .filter(rep -> zkShardTerms.getTerm(rep.getName()) == optionalMaxTerm.getAsLong())
