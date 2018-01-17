@@ -547,7 +547,9 @@ public class ZkController {
    */
   public void close() {
     this.isClosed = true;
-    collectionToTerms.values().forEach(ZkCollectionTerms::close);
+    synchronized (collectionToTerms) {
+      collectionToTerms.values().forEach(ZkCollectionTerms::close);
+    }
     try {
       for (ElectionContext context : electionContexts.values()) {
         try {
