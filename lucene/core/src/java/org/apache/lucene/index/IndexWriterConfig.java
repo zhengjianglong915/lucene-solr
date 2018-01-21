@@ -65,7 +65,8 @@ public final class IndexWriterConfig extends LiveIndexWriterConfig {
     CREATE,
     
     /** 
-     * Opens an existing index. 
+     * Opens an existing index.
+     * 打开已经存在的一个索引
      */
     APPEND,
     

@@ -275,10 +275,12 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
   private final Directory directoryOrig;       // original user directory
   final Directory directory;           // wrapped with additional checks
   private final Analyzer analyzer;    // how to analyze text
-
+  // 改变的次数
   private final AtomicLong changeCount = new AtomicLong(); // increments every time a change is completed
   private volatile long lastCommitChangeCount; // last changeCount that was committed
-
+  /**
+   * 段事务回滚，需要回滚的段提交文件
+   */
   private List<SegmentCommitInfo> rollbackSegments;      // list of segmentInfo we will fallback to if the commit fails
 
   volatile SegmentInfos pendingCommit;            // set when a commit is pending (after prepareCommit() & before commit())
@@ -286,18 +288,23 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
   volatile long pendingCommitChangeCount;
 
   private Collection<String> filesToCommit;
-
+  // 段信息
   final SegmentInfos segmentInfos;       // the segments
   final FieldNumbers globalFieldNumberMap;
 
   final DocumentsWriter docWriter;
   private final Queue<Event> eventQueue;
+  /**
+   * 此对象不是用来删除文档的，而是用来管理索引文件的。
+   */
   final IndexFileDeleter deleter;
 
   // used by forceMerge to note those needing merging
   private Map<SegmentCommitInfo,Boolean> segmentsToMerge = new HashMap<>();
   private int mergeMaxNumSegments;
-
+  /**
+   * 写锁，保证一致性
+   */
   private Lock writeLock;
 
   private volatile boolean closed;
@@ -945,19 +952,22 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
 
     // obtain the write.lock. If the user configured a timeout,
     // we wrap with a sleeper and this might take some time.
+    // 获得写锁， 从指定索引目录下去获取获取写锁
     writeLock = d.obtainLock(WRITE_LOCK_NAME);
     
     boolean success = false;
     try {
       directoryOrig = d;
       directory = new LockValidatingDirectoryWrapper(d, writeLock);
-
+      // 分析器
       analyzer = config.getAnalyzer();
+      // 管理线程
       mergeScheduler = config.getMergeScheduler();
       mergeScheduler.setInfoStream(infoStream);
       codec = config.getCodec();
 
       bufferedUpdatesStream = new BufferedUpdatesStream(this);
+      // 提供了一个Reader池
       poolReaders = config.getReaderPooling();
 
       OpenMode mode = config.getOpenMode();
@@ -1004,6 +1014,9 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
         // against an index that's currently open for
         // searching.  In this case we write the next
         // segments_N file with no segments:
+        /**
+         * 创建段文件segments_N
+         */
         final SegmentInfos sis = new SegmentInfos(Version.LATEST.major);
         try {
           final SegmentInfos previous = SegmentInfos.readLatestCommit(directory);
@@ -1014,7 +1027,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit, Accountable {
         }
         
         segmentInfos = sis;
-
+        // 索引文件增加和删除的 回滚事务
         rollbackSegments = segmentInfos.createBackupSegmentInfos();
 
         // Record that we have a change (zero out all
