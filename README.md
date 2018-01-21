@@ -16,6 +16,7 @@
  -->
 
 # Apache Lucene and Solr
+代码版本是 7.2.1 
 
 Apache Lucene is a high-performance, full featured text search engine library
 written in Java.
